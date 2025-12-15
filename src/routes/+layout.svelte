@@ -3,6 +3,7 @@
 	import { chatState } from '$lib/states/chat.svelte';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
+	import { SSE_CONFIG } from '$lib/sse/config';
 
 	let { children, data } = $props();
 	let isVisible = $state(true);
@@ -11,14 +12,14 @@
 	let updateInProgress = $state(false);
 	let idleTimeout = $state<number | undefined>(undefined);
 
-	// New throttle state variables
+	// Timing constants from SSE config for consistency
 	let lastSentStatus = $state<string | null>(null);
 	let lastStatusSentAt = $state<number>(0);
 	let lastUserActivity = $state<number>(Date.now());
-	const STATUS_UPDATE_INTERVAL = 15000; // 15 seconds
+	const STATUS_UPDATE_INTERVAL = SSE_CONFIG.STATUS_UPDATE_INTERVAL; // 30 seconds
 	const THROTTLE_TIME_MS = 10000; // 10 seconds
-	const FORCE_UPDATE_INTERVAL = 5 * 60000; // 5 minutes
-	const IDLE_TIMEOUT = 5 * 60000; // 5 minutes of inactivity = idle
+	const FORCE_UPDATE_INTERVAL = SSE_CONFIG.CONNECTION_TIMEOUT; // 5 minutes
+	const IDLE_TIMEOUT = SSE_CONFIG.IDLE_TIMEOUT; // 2 minutes of inactivity = idle (aligned with server)
 
 	type UserStatus = 'online' | 'offline' | 'busy' | 'idle';
 

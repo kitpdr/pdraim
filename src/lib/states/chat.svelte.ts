@@ -1,3 +1,10 @@
+/**
+ * Chat State Management
+ *
+ * Central state manager for chat functionality using Svelte 5 runes.
+ * Handles SSE connections, messages, and user state.
+ */
+
 import type { User, Message, EnrichedMessage, SafeUser } from '../types/chat';
 import { createSafeUser } from '../types/chat';
 import type {
@@ -8,38 +15,53 @@ import type {
 import type { TextStyle } from '../types/text-formatting';
 import { invalidate } from '$app/navigation';
 import { env } from '$env/dynamic/public';
+import { SSEClient, type SSEClientConfig } from '../sse/SSEClient.svelte';
+import type { SSEEventMap } from '../sse/SSEEventEmitter';
+import type { ConnectionStatus } from '../sse/config';
 
 // Use the public environment variable with a fallback
 const DEFAULT_CHAT_ROOM_ID =
 	env.PUBLIC_DEFAULT_CHAT_ROOM_ID || '00000000-0000-0000-0000-000000000001';
 
 class ChatState {
+	// User and message state
 	private users = $state<SafeUser[]>([]);
 	private messages = $state<Message[]>([]);
 	private currentUser = $state<SafeUser | null>(null);
-	private eventSource: EventSource | null = null;
-	private reconnectAttempts = 0;
-	private maxReconnectAttempts = 5;
-	private reconnectDelay = 1000; // Start with 1 second
-	private isInitializing = $state(false);
 	private currentRoomId = $state<string>(DEFAULT_CHAT_ROOM_ID);
 	private userCache = $state<Record<string, SafeUser>>({});
-	private sseError = $state<string | null>(null);
-	private sseRetryAfter = $state<number | null>(null);
-	private connectionTimeout: ReturnType<typeof setTimeout> | null = null;
-	private isReconnecting = $state(false);
+	private hasMoreMessages = $state(false);
+
+	// SSE Client
+	private sseClient: SSEClient | null = null;
+
+	// Connection state
+	private _connectionStatus = $state<ConnectionStatus>('disconnected');
+	private _sseError = $state<string | null>(null);
+
+	// Internal state flags
+	private isInitializing = $state(false);
 	private isSettingUser = $state(false);
-	private isConnecting = $state(false);
-	private connectionAttemptTimeout: ReturnType<typeof setTimeout> | null = null;
+
+	// Memoization for enriched messages
 	private _memoizedEnrichedMessages: EnrichedMessage[] | null = null;
 	private _lastEnrichmentKey: string = '';
-	// Flag to avoid re-registering SSE event handlers
-	private sseHandlersRegistered = false;
-	private lastBuddyListUpdate = 0;
+
+	// Buddy list tracking
 	private lastBuddyListHash = '';
-	private hasMoreMessages = $state(false);
+
+	// Public polling for unauthenticated users
 	private publicPollingInterval: ReturnType<typeof setInterval> | null = null;
 
+	// Derived state
+	public connectionStatus = $derived(this._connectionStatus);
+	public sseError = $derived(this._sseError);
+	public isConnected = $derived(this._connectionStatus === 'connected');
+	public isReconnecting = $derived(this._connectionStatus === 'reconnecting');
+
+	/**
+	 * Reinitialize the chat state (e.g., after login)
+	 */
 	public async reinitialize() {
 		if (this.isInitializing) {
 			console.debug('Reinitialize already in progress, skipping.');
@@ -47,43 +69,54 @@ class ChatState {
 		}
 		this.isInitializing = true;
 		console.debug('Reinitializing chat state...');
-		if (this.eventSource) {
-			this.eventSource.close();
-			this.eventSource = null;
+
+		// Disconnect existing SSE client
+		if (this.sseClient) {
+			this.sseClient.disconnect();
+			this.sseClient = null;
 		}
-		this.reconnectAttempts = 0;
-		this.reconnectDelay = 1000;
+
 		this.messages = [];
-		// Ensure currentRoomId is set
 		this.currentRoomId = DEFAULT_CHAT_ROOM_ID;
 
 		if (this.currentUser) {
 			console.debug('Waiting for session cookie update before setting up SSE...');
 			await new Promise((resolve) => setTimeout(resolve, 1000));
-			// First set up SSE to receive status updates
+
+			// Set up SSE connection
 			this.setupSSE();
-			// Then initialize messages and room users
+
+			// Initialize messages and room users
 			await Promise.all([this.initializeMessages(), this.initializeRoomUsers()]);
 		}
+
 		this.isInitializing = false;
 	}
 
+	/**
+	 * Get SSE error information
+	 */
 	getSSEError() {
 		return {
-			error: this.sseError,
-			retryAfter: this.sseRetryAfter
+			error: this._sseError,
+			status: this._connectionStatus,
+			retryAfter: this.sseClient?.getReconnectDelay() ?? null
 		};
 	}
 
-	// User methods
+	/**
+	 * Get the current user
+	 */
 	getCurrentUser() {
 		return this.currentUser;
 	}
 
+	/**
+	 * Set the current user
+	 */
 	async setCurrentUser(user: User | SafeUser | null) {
 		console.debug('setCurrentUser called with', user ? { ...user, password: '[REDACTED]' } : null);
 
-		// Prevent concurrent setCurrentUser calls
 		if (this.isSettingUser) {
 			console.debug('Already setting user, skipping');
 			return;
@@ -92,18 +125,16 @@ class ChatState {
 		this.isSettingUser = true;
 
 		try {
-			// If user is null and we already have no user, skip
 			if (!user && !this.currentUser) {
 				console.debug('No user to set and no current user, skipping');
 				return;
 			}
 
-			// Convert to SafeUser if full User object is passed
 			const safeUser = user ? ('password' in user ? createSafeUser(user) : user) : null;
 
-			// If same user is being set, check SSE connection
+			// Check if same user with active connection
 			if (safeUser?.id === this.currentUser?.id) {
-				if (!this.eventSource) {
+				if (!this.sseClient || !this.sseClient.isConnected) {
 					console.debug('Same user being set but no active SSE connection, reinitializing.');
 				} else {
 					console.debug('Same user being set with active connection, skipping.');
@@ -111,31 +142,31 @@ class ChatState {
 				}
 			}
 
-			// Clear existing messages before setting new user
 			this.messages = [];
 			this.currentUser = safeUser;
 
 			if (safeUser) {
-				// Update user cache with current user
 				this.userCache[safeUser.id] = safeUser;
-
-				// Only reinitialize if we have a valid user
 				await this.reinitialize();
 			} else {
 				// Cleanup when user is removed
-				if (this.eventSource) {
-					this.eventSource.close();
-					this.eventSource = null;
+				if (this.sseClient) {
+					this.sseClient.disconnect();
+					this.sseClient = null;
 				}
 				this.messages = [];
 				this.users = [];
 				this.userCache = {};
+				this._connectionStatus = 'disconnected';
 			}
 		} finally {
 			this.isSettingUser = false;
 		}
 	}
 
+	/**
+	 * Initialize room users
+	 */
 	private async initializeRoomUsers() {
 		console.debug('Initializing room users for room:', this.currentRoomId);
 		try {
@@ -143,9 +174,7 @@ class ChatState {
 			const url = `/api/rooms/${this.currentRoomId}${isPublic ? '?public=true' : ''}`;
 			console.debug('Fetching room users from:', url);
 
-			const response = await fetch(url, {
-				credentials: 'include'
-			});
+			const response = await fetch(url, { credentials: 'include' });
 
 			if (!response.ok) {
 				throw new Error('Failed to fetch room users');
@@ -157,20 +186,14 @@ class ChatState {
 			}
 
 			console.debug('Fetched room buddy list:', data.buddyList);
-			// Merge fetched buddy list with existing cached users to preserve user details even if offline
-			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- temporary Map for merging, not reactive state
-			const mergedUsers = new Map<string, (typeof data.buddyList)[0]>();
-			// Add existing cached users
-			Object.values(this.userCache).forEach((user) => mergedUsers.set(user.id, user));
 
-			// Overwrite/add with fetched buddy list
-			data.buddyList.forEach((user: (typeof data.buddyList)[0]) => {
-				mergedUsers.set(user.id, user);
-			});
+			// Merge fetched buddy list with existing cached users
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- temporary Map for merging
+			const mergedUsers = new Map<string, SafeUser>();
+			Object.values(this.userCache).forEach((user) => mergedUsers.set(user.id, user));
+			data.buddyList.forEach((user: SafeUser) => mergedUsers.set(user.id, user));
 
 			this.users = Array.from(mergedUsers.values());
-
-			// Update cache with merged users
 			this.users.forEach((user) => {
 				this.userCache[user.id] = user;
 			});
@@ -180,8 +203,10 @@ class ChatState {
 		}
 	}
 
+	/**
+	 * Get online users sorted by status
+	 */
 	getOnlineUsers() {
-		// Sort users by status: online first, then away, then busy, then offline
 		return [...this.users].sort((a: SafeUser, b: SafeUser) => {
 			const statusOrder: Record<SafeUser['status'], number> = {
 				online: 0,
@@ -193,13 +218,14 @@ class ChatState {
 		});
 	}
 
+	/**
+	 * Get user by ID
+	 */
 	getUserById(userId: string) {
-		// First check the cache
 		if (this.userCache[userId]) {
 			return this.userCache[userId];
 		}
 
-		// Return a fallback object and cache it to avoid repeated fetches
 		const fallback: SafeUser = {
 			id: userId,
 			nickname: 'Unknown User',
@@ -212,6 +238,9 @@ class ChatState {
 		return fallback;
 	}
 
+	/**
+	 * Update user status
+	 */
 	updateUserStatus(userId: string, status: User['status'], lastSeen?: number) {
 		console.debug('Updating user status with:', {
 			userId,
@@ -226,16 +255,14 @@ class ChatState {
 			existingUser &&
 			existingUser.status === status &&
 			lastSeen &&
-			Math.abs(existingUser.lastSeen ?? 0 - lastSeen) < 5000
+			Math.abs((existingUser.lastSeen ?? 0) - lastSeen) < 5000
 		) {
 			console.debug('Skipping redundant status update for user:', userId);
 			return;
 		}
 
-		// Try to get the user from cache first
 		let user: SafeUser | undefined = this.userCache[userId];
 
-		// If not in cache, try to find in users array
 		if (!user) {
 			const foundUser = this.users.find((u: SafeUser) => u.id === userId);
 			if (foundUser) {
@@ -251,13 +278,10 @@ class ChatState {
 				lastSeen: lastSeen ?? (status === 'offline' ? now : user.lastSeen)
 			};
 
-			// Update cache first
 			this.userCache[userId] = updatedUser;
 
-			// Then update or add to users array
 			const index = this.users.findIndex((u: SafeUser) => u.id === userId);
 			if (index !== -1) {
-				// Create new array with updated user
 				this.users = [...this.users.slice(0, index), updatedUser, ...this.users.slice(index + 1)];
 			} else {
 				this.users = [...this.users, updatedUser];
@@ -266,12 +290,9 @@ class ChatState {
 			console.debug('User status updated:', {
 				userId,
 				newStatus: status,
-				newLastSeen: new Date(updatedUser.lastSeen || now).toISOString(),
-				updatedInCache: this.userCache[userId].status === status,
-				updatedInList: this.users.find((u) => u.id === userId)?.status === status
+				newLastSeen: new Date(updatedUser.lastSeen || now).toISOString()
 			});
 		} else {
-			// If user not found anywhere, fetch from API
 			console.debug('User not found in cache or list, fetching from API:', userId);
 			fetch(`/api/users/${userId}`, { credentials: 'include' })
 				.then((response) => response.json())
@@ -282,16 +303,12 @@ class ChatState {
 							status,
 							lastSeen: lastSeen ?? (status === 'offline' ? now : data.user.lastSeen)
 						};
-						// Update both cache and users array
 						this.userCache[userId] = newUser;
 						this.users = [...this.users, newUser];
 
 						console.debug('User fetched and status updated:', {
 							userId,
-							status: newUser.status,
-							lastSeen: new Date(newUser.lastSeen || now).toISOString(),
-							addedToCache: !!this.userCache[userId],
-							addedToList: this.users.some((u) => u.id === userId)
+							status: newUser.status
 						});
 					}
 				})
@@ -299,7 +316,9 @@ class ChatState {
 		}
 	}
 
-	// Message methods
+	/**
+	 * Get enriched messages with user data
+	 */
 	getMessages() {
 		const key =
 			this.messages.map((m) => m.id).join(',') + '|' + Object.keys(this.userCache).sort().join(',');
@@ -315,13 +334,15 @@ class ChatState {
 		return this._memoizedEnrichedMessages;
 	}
 
+	/**
+	 * Prepend messages (for loading older messages)
+	 */
 	public prependMessages(newMessages: Message[], hasMore?: boolean) {
 		console.debug('Prepending messages:', { count: newMessages.length });
-		// Get unique user IDs from new messages that aren't in the cache
+
 		const uniqueUserIds = new Set(newMessages.map((msg) => msg.senderId));
 		const missingUserIds = Array.from(uniqueUserIds).filter((id) => !this.userCache[id]);
 
-		// Fetch missing user data in parallel
 		if (missingUserIds.length > 0) {
 			console.debug('Fetching missing user data for IDs:', missingUserIds);
 			Promise.all(
@@ -334,7 +355,6 @@ class ChatState {
 							const userData = await userResponse.json();
 							if (userData.success && userData.user) {
 								this.userCache[userId] = userData.user;
-								// Only add to users array if not already present
 								if (!this.users.some((u) => u.id === userId)) {
 									this.users = [...this.users, userData.user];
 								}
@@ -347,31 +367,29 @@ class ChatState {
 			);
 		}
 
-		// Ensure incoming messages are sorted in ascending order before prepending
 		const sortedNewMessages = newMessages.slice().sort((a, b) => a.timestamp - b.timestamp);
 		const uniqueNewMessages = sortedNewMessages.filter(
 			(msg) => !this.messages.some((m) => m.id === msg.id)
 		);
 		this.messages = [...uniqueNewMessages, ...this.messages];
 
-		// Update hasMore if provided
 		if (hasMore !== undefined) {
 			this.hasMoreMessages = hasMore;
 		}
 	}
 
-	// Add method to update user cache for public access
+	/**
+	 * Update user cache
+	 */
 	updateUserCache(users: (User | SafeUser)[]) {
 		console.debug(
 			'Updating user cache with users:',
 			users.map((u) => ({ ...u, password: '[REDACTED]' }))
 		);
-		// Merge incoming users with the existing cache, ensuring we only store SafeUser objects
 		users.forEach((user) => {
 			const safeUser = 'password' in user ? createSafeUser(user) : user;
 			if (!this.userCache[user.id] || safeUser.status !== this.userCache[user.id].status) {
 				this.userCache[user.id] = safeUser;
-				// Update users array if not already present or if status changed
 				const existingIndex = this.users.findIndex((u) => u.id === user.id);
 				if (existingIndex === -1) {
 					this.users = [...this.users, safeUser];
@@ -386,14 +404,14 @@ class ChatState {
 		});
 	}
 
-	// Add method to update online users for public access
+	/**
+	 * Update online users (from buddy list updates)
+	 */
 	updateOnlineUsers(users: (User | SafeUser)[]) {
 		const now = Date.now();
-		// Convert all users to SafeUser and create a hash
 		const safeUsers = users.map((user) => ('password' in user ? createSafeUser(user) : user));
 		const newHash = JSON.stringify(safeUsers);
 
-		// Only update if the data has changed
 		if (newHash !== this.lastBuddyListHash) {
 			const statusCounts = safeUsers.reduce(
 				(acc, user) => {
@@ -410,28 +428,27 @@ class ChatState {
 			});
 
 			this.users = safeUsers;
-			// Also update cache
 			safeUsers.forEach((user) => {
 				this.userCache[user.id] = user;
 			});
 			this.lastBuddyListHash = newHash;
-			this.lastBuddyListUpdate = now;
 		}
 	}
 
-	// Add method to update messages for public access
+	/**
+	 * Update messages (for public/unauthenticated access)
+	 */
 	updateMessages(messages: Message[]) {
-		// Deduplicate the messages by their id in case duplicates exist
 		const uniqueMessages = Array.from(new Map(messages.map((msg) => [msg.id, msg])).values());
-		// Sort messages in ascending order (oldest first, newest at bottom)
 		this.messages = uniqueMessages.sort((a, b) => a.timestamp - b.timestamp);
 	}
 
-	// Note: For authenticated users, we no longer use the message cache. Messages are fetched directly from the database, and real-time updates are handled via SSE.
+	/**
+	 * Initialize messages from the server
+	 */
 	async initializeMessages() {
 		try {
-			// Build the URL with appropriate parameters
-			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- URLSearchParams for URL building, not reactive state
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- URLSearchParams for URL building
 			const params = new URLSearchParams();
 			if (!this.currentUser) {
 				params.append('public', 'true');
@@ -448,11 +465,9 @@ class ChatState {
 				throw new Error(data.error);
 			}
 
-			// Get unique user IDs from messages that aren't in the cache
 			const uniqueUserIds = new Set(data.messages.map((msg) => msg.senderId));
 			const missingUserIds = Array.from(uniqueUserIds).filter((id) => !this.userCache[id]);
 
-			// Fetch missing user data in parallel
 			if (missingUserIds.length > 0) {
 				console.debug('Fetching missing user data for IDs:', missingUserIds);
 				await Promise.all(
@@ -465,7 +480,6 @@ class ChatState {
 								const userData = await userResponse.json();
 								if (userData.success && userData.user) {
 									this.userCache[userId] = userData.user;
-									// Only add to users array if not already present
 									if (!this.users.some((u) => u.id === userId)) {
 										this.users = [...this.users, userData.user];
 									}
@@ -478,10 +492,8 @@ class ChatState {
 				);
 			}
 
-			// Sort messages in ascending order (oldest first, most recent at the bottom)
 			this.messages = data.messages.slice().sort((a, b) => a.timestamp - b.timestamp);
 
-			// Update hasMore based on response
 			if ('hasMore' in data) {
 				this.hasMoreMessages = data.hasMore;
 			}
@@ -498,6 +510,9 @@ class ChatState {
 		}
 	}
 
+	/**
+	 * Send a message
+	 */
 	async sendMessage(
 		content: string,
 		type: Message['type'] = 'chat',
@@ -554,124 +569,91 @@ class ChatState {
 		}
 	}
 
+	/**
+	 * Set up SSE connection using the new SSEClient
+	 */
 	private setupSSE() {
-		// Prevent creating multiple SSE connections if one is already active.
-		if (this.eventSource && this.eventSource.readyState !== EventSource.CLOSED) {
+		if (this.sseClient && this.sseClient.isConnected) {
 			console.debug('setupSSE: Active SSE connection exists, skipping setup.');
 			return;
 		}
-		// Clear any existing timeouts
-		if (this.connectionTimeout) {
-			clearTimeout(this.connectionTimeout);
-			this.connectionTimeout = null;
-		}
 
-		if (this.connectionAttemptTimeout) {
-			clearTimeout(this.connectionAttemptTimeout);
-			this.connectionAttemptTimeout = null;
-		}
-
-		// Debounce connection attempts
-		this.connectionAttemptTimeout = setTimeout(() => {
-			if (!this.currentUser) {
-				console.debug('No current user, skipping SSE connection');
-				return;
-			}
-
-			if (this.isConnecting) {
-				console.debug('Already connecting to SSE, skipping');
-				return;
-			}
-
-			this.connectSSE();
-		}, 1000);
-	}
-
-	private async connectSSE() {
-		if (this.isConnecting) {
-			console.debug('Already connecting to SSE, skipping');
+		if (!this.currentUser) {
+			console.debug('No current user, skipping SSE connection');
 			return;
 		}
 
-		this.isConnecting = true;
+		console.debug('Setting up SSE connection...');
 
-		try {
-			// Ensure clean disconnect of any existing connection
-			if (this.eventSource) {
-				console.debug('Closing existing SSE connection');
-				this.eventSource.close();
-				this.eventSource = null;
+		const config: SSEClientConfig = {
+			url: '/api/sse',
+			onMessage: this.handleSSEMessage.bind(this),
+			onStatusChange: this.handleConnectionStatusChange.bind(this),
+			onError: (error) => {
+				this._sseError = error;
+				console.debug('SSE error:', error);
 			}
+		};
 
-			console.debug('Connecting to SSE...');
-			this.eventSource = new EventSource('/api/sse', { withCredentials: true });
-			// Reset the handlers flag for the new connection
-			this.sseHandlersRegistered = false;
+		this.sseClient = new SSEClient(config);
+		this.sseClient.connect();
+	}
 
-			this.eventSource.onopen = () => {
-				console.debug('SSE connection established');
-				this.reconnectAttempts = 0;
-				this.reconnectDelay = 1000;
-				this.sseError = null;
-				this.sseRetryAfter = null;
-				this.isReconnecting = false;
-			};
-
-			// Set up error handling
-			this.eventSource.onerror = (error) => {
-				console.debug('SSE connection error:', error);
-				if (this.eventSource?.readyState === EventSource.CLOSED) {
-					this.handleDisconnection();
-				}
-			};
-
-			// Register event handlers (only once)
-			this.setupMessageHandlers();
-		} catch (error) {
-			console.debug('Error setting up SSE connection:', error);
-			this.handleDisconnection();
-		} finally {
-			this.isConnecting = false;
+	/**
+	 * Handle incoming SSE messages
+	 */
+	private handleSSEMessage<T extends keyof SSEEventMap>(type: T, data: SSEEventMap[T]) {
+		switch (type) {
+			case 'chatMessage':
+				this.handleChatMessage(data as SSEEventMap['chatMessage']);
+				break;
+			case 'buddyListUpdate':
+				this.updateOnlineUsers(data as SSEEventMap['buddyListUpdate']);
+				break;
+			case 'userStatusUpdate': {
+				const statusData = data as SSEEventMap['userStatusUpdate'];
+				this.updateUserStatus(statusData.userId, statusData.status, statusData.lastSeen);
+				break;
+			}
+			case 'heartbeat':
+				// Heartbeat is handled by SSEClient, no action needed here
+				break;
+			default:
+				console.debug('Unknown SSE event type:', type);
 		}
 	}
 
-	// Register SSE event handlers only once per connection.
-	private setupMessageHandlers() {
-		if (this.sseHandlersRegistered || !this.eventSource) {
-			return;
-		}
+	/**
+	 * Handle chat message from SSE
+	 */
+	private async handleChatMessage(messageData: Message) {
+		console.debug('Received chat message via SSE:', messageData);
 
-		// Listen for chat messages
-		this.eventSource.addEventListener('chatMessage', async (event: MessageEvent) => {
-			try {
-				const messageData = JSON.parse(event.data) as Message;
-				console.debug('Received chat message via SSE:', messageData);
-				// Deduplicate and update messages array with the new message
-				this.messages = Array.from(
-					new Map([...this.messages, messageData].map((m) => [m.id, m])).values()
-				);
-				// Sort messages so the newest are at the bottom
-				this.messages.sort((a, b) => a.timestamp - b.timestamp);
-				// Ensure the sender's data is available
-				await this.ensureUserData(messageData.senderId);
-			} catch (error) {
-				console.debug('Error handling SSE chat message:', error);
-			}
-		});
+		// Deduplicate and update messages array
+		this.messages = Array.from(
+			new Map([...this.messages, messageData].map((m) => [m.id, m])).values()
+		);
+		this.messages.sort((a, b) => a.timestamp - b.timestamp);
 
-		// Modify buddy list update handler
-		this.eventSource.addEventListener('buddyListUpdate', async (event: MessageEvent) => {
-			try {
-				const buddyList = JSON.parse(event.data) as SafeUser[];
-				this.updateOnlineUsers(buddyList);
-			} catch (error) {
-				console.debug('Error handling buddy list update via SSE:', error);
-			}
-		});
-
-		this.sseHandlersRegistered = true;
+		// Ensure the sender's data is available
+		await this.ensureUserData(messageData.senderId);
 	}
 
+	/**
+	 * Handle connection status changes
+	 */
+	private handleConnectionStatusChange(status: ConnectionStatus) {
+		this._connectionStatus = status;
+		console.debug('SSE connection status changed:', status);
+
+		if (status === 'connected') {
+			this._sseError = null;
+		}
+	}
+
+	/**
+	 * Ensure user data is loaded
+	 */
 	private async ensureUserData(userId: string) {
 		if (this.userCache[userId]) return;
 
@@ -694,29 +676,9 @@ class ChatState {
 		}
 	}
 
-	private handleDisconnection() {
-		console.debug('SSE connection closed, reconnecting...');
-		this.isReconnecting = true;
-		this.reconnectAttempts++;
-		if (this.reconnectAttempts > this.maxReconnectAttempts) {
-			console.debug('Max reconnect attempts reached, giving up');
-			if (this.eventSource) {
-				this.eventSource.close();
-			}
-			this.eventSource = null;
-			return;
-		}
-		this.reconnectDelay *= 2; // Exponential backoff
-		// Ensure any existing connection is properly closed before reconnecting
-		if (this.eventSource) {
-			this.eventSource.close();
-			this.eventSource = null;
-		}
-		// Reset the handlers flag so that the new connection gets its event listeners registered fresh.
-		this.sseHandlersRegistered = false;
-		this.setupSSE();
-	}
-
+	/**
+	 * Enrich messages with user data
+	 */
 	enrichMessages(messages: Message[]): EnrichedMessage[] {
 		console.debug('Enriching messages with user data', {
 			messagesCount: messages.length,
@@ -734,8 +696,25 @@ class ChatState {
 		}));
 	}
 
+	/**
+	 * Get the default chat room ID
+	 */
 	getDefaultChatRoomId() {
 		return DEFAULT_CHAT_ROOM_ID;
+	}
+
+	/**
+	 * Disconnect SSE (for cleanup)
+	 */
+	disconnect() {
+		if (this.sseClient) {
+			this.sseClient.disconnect();
+			this.sseClient = null;
+		}
+		if (this.publicPollingInterval) {
+			clearInterval(this.publicPollingInterval);
+			this.publicPollingInterval = null;
+		}
 	}
 }
 

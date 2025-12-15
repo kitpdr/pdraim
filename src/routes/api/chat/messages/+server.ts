@@ -10,7 +10,7 @@ import type {
 import { and, desc, eq, lt } from 'drizzle-orm/sql';
 import type { SQL } from 'drizzle-orm/sql';
 import { error } from '@sveltejs/kit';
-import { sseEmitter } from '$lib/sseEmitter';
+import { sseEmitter } from '$lib/sse/SSEEventEmitter';
 import { chatRooms } from '$lib/db/schema';
 import { users } from '$lib/db/schema';
 import { DEFAULT_CHAT_ROOM_ID } from '$lib/utils/chat.server';
@@ -220,7 +220,7 @@ export async function POST({ request, locals }: { request: Request; locals: App.
 		});
 
 		// Broadcast the new message via SSE
-		sseEmitter.emit('sse', { type: 'chatMessage', data: newMessage });
+		sseEmitter.emit('chatMessage', newMessage);
 
 		log.debug('Message processed successfully', {
 			messageId: newMessage.id,
