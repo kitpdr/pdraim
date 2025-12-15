@@ -8,33 +8,40 @@ import { createLogger } from '$lib/utils/logger.server';
 import { eq } from 'drizzle-orm/sql';
 
 const log = createLogger('register-server');
-const isDev = process.env.NODE_ENV === 'development';
 
 // In-memory map to track failed captcha attempts per IP
-const captchaAttempts = new Map<string, { count: number, lastAttempt: number }>();
+const captchaAttempts = new Map<string, { count: number; lastAttempt: number }>();
 
 // Cleanup old entries every hour
-setInterval(() => {
-	const now = Date.now();
-	const ONE_HOUR = 60 * 60 * 1000;
-	for (const [ip, data] of captchaAttempts.entries()) {
-		if (now - data.lastAttempt > ONE_HOUR) {
-			captchaAttempts.delete(ip);
+setInterval(
+	() => {
+		const now = Date.now();
+		const ONE_HOUR = 60 * 60 * 1000;
+		for (const [ip, data] of captchaAttempts.entries()) {
+			if (now - data.lastAttempt > ONE_HOUR) {
+				captchaAttempts.delete(ip);
+			}
 		}
-	}
-}, 60 * 60 * 1000);
+	},
+	60 * 60 * 1000
+);
 
 export const POST: RequestHandler = async ({ request }) => {
 	log.debug('New registration attempt received');
 
 	if (request.method !== 'POST') {
 		log.warn('Invalid method used', { method: request.method });
-		return new Response(JSON.stringify({ error: 'Method Not Allowed' } as RegisterResponseError), { status: 405 });
+		return new Response(JSON.stringify({ error: 'Method Not Allowed' } as RegisterResponseError), {
+			status: 405
+		});
 	}
 
 	// Get the IP address for rate limiting and Turnstile validation
 	const ip = request.headers.get('x-forwarded-for') || 'unknown';
-	const maskedIp = ip.split('.').map((octet, idx) => idx < 3 ? 'xxx' : octet).join('.');
+	const maskedIp = ip
+		.split('.')
+		.map((octet, idx) => (idx < 3 ? 'xxx' : octet))
+		.join('.');
 	const now = Date.now();
 	const attemptData = captchaAttempts.get(ip) || { count: 0, lastAttempt: 0 };
 
@@ -43,15 +50,17 @@ export const POST: RequestHandler = async ({ request }) => {
 		body = await request.json();
 	} catch {
 		log.warn('Invalid JSON payload received');
-		return new Response(JSON.stringify({ error: 'Invalid JSON' } as RegisterResponseError), { status: 400 });
+		return new Response(JSON.stringify({ error: 'Invalid JSON' } as RegisterResponseError), {
+			status: 400
+		});
 	}
 
-	const { suUsername, suPassword, suConfirmPassword, captchaAnswer, turnstileToken } = body as { 
-		suUsername: string, 
-		suPassword: string, 
-		suConfirmPassword: string, 
-		captchaAnswer: string,
-		turnstileToken?: string 
+	const { suUsername, suPassword, suConfirmPassword, captchaAnswer, turnstileToken } = body as {
+		suUsername: string;
+		suPassword: string;
+		suConfirmPassword: string;
+		captchaAnswer: string;
+		turnstileToken?: string;
 	};
 
 	// Validate input using Zod schema
@@ -64,12 +73,14 @@ export const POST: RequestHandler = async ({ request }) => {
 			captchaAnswer,
 			turnstileToken
 		});
-	} catch (err: any) {
-		const errorMessage = err.errors?.[0]?.message || 'Invalid input data';
+	} catch (err: unknown) {
+		const zodError = err as { errors?: Array<{ message?: string }> };
+		const errorMessage = zodError.errors?.[0]?.message || 'Invalid input data';
 		log.warn('Registration validation failed', { error: errorMessage });
-		return new Response(JSON.stringify({ error: errorMessage } as RegisterResponseError), { status: 400 });
+		return new Response(JSON.stringify({ error: errorMessage } as RegisterResponseError), {
+			status: 400
+		});
 	}
-
 
 	// Validate PDR captcha
 	const normalizedAnswer = captchaAnswer.trim().toLowerCase();
@@ -78,7 +89,10 @@ export const POST: RequestHandler = async ({ request }) => {
 		attemptData.lastAttempt = now;
 		captchaAttempts.set(ip, attemptData);
 		log.warn('Invalid captcha answer', { maskedIp, attemptCount: attemptData.count });
-		return new Response(JSON.stringify({ error: 'Invalid answer to the PDR question' } as RegisterResponseError), { status: 400 });
+		return new Response(
+			JSON.stringify({ error: 'Invalid answer to the PDR question' } as RegisterResponseError),
+			{ status: 400 }
+		);
 	}
 
 	// Reset captcha attempts on success
@@ -92,7 +106,10 @@ export const POST: RequestHandler = async ({ request }) => {
 	const existingUser = await db.select().from(users).where(eq(users.nickname, username));
 	if (existingUser.length > 0) {
 		log.warn('Username already exists', { username });
-		return new Response(JSON.stringify({ error: 'This username is already taken' } as RegisterResponseError), { status: 409 });
+		return new Response(
+			JSON.stringify({ error: 'This username is already taken' } as RegisterResponseError),
+			{ status: 409 }
+		);
 	}
 
 	// Securely hash the user's password.
@@ -101,7 +118,10 @@ export const POST: RequestHandler = async ({ request }) => {
 		hashedPassword = await hashPassword(password);
 	} catch {
 		log.error('Error hashing password');
-		return new Response(JSON.stringify({ error: 'Internal Server Error' } as RegisterResponseError), { status: 500 });
+		return new Response(
+			JSON.stringify({ error: 'Internal Server Error' } as RegisterResponseError),
+			{ status: 500 }
+		);
 	}
 	// Insert the new user into the database.
 	try {
@@ -114,8 +134,15 @@ export const POST: RequestHandler = async ({ request }) => {
 	} catch (err: unknown) {
 		log.error('Database insertion error', { error: err as object });
 		// Assume a duplicate user error if the email (or derived unique field) already exists.
-		return new Response(JSON.stringify({ error: 'User registration failed. Possibly user already exists.' } as RegisterResponseError), { status: 409 });
+		return new Response(
+			JSON.stringify({
+				error: 'User registration failed. Possibly user already exists.'
+			} as RegisterResponseError),
+			{ status: 409 }
+		);
 	}
 
-	return new Response(JSON.stringify({ success: true } as RegisterResponseSuccess), { status: 201 });
+	return new Response(JSON.stringify({ success: true } as RegisterResponseSuccess), {
+		status: 201
+	});
 };

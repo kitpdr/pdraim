@@ -12,24 +12,28 @@ const db = drizzle(client, { schema });
 
 // Initialize database with required data
 export const initializeDatabase = async () => {
-    log.debug('Initializing database...');
-    try {
-        await ensureDefaultChatRoom(db);
-        log.debug('Database initialization complete');
-    } catch (error) {
-        log.error('Error initializing database:', { error: error instanceof Error ? error.message : 'Unknown error' });
-        throw error;
-    }
+	log.debug('Initializing database...');
+	try {
+		await ensureDefaultChatRoom(db);
+		log.debug('Database initialization complete');
+	} catch (error) {
+		log.error('Error initializing database:', {
+			error: error instanceof Error ? error.message : 'Unknown error'
+		});
+		throw error;
+	}
 };
 
 // Call initialization when the module is loaded
-initializeDatabase().catch(error => {
-    log.error('Failed to initialize database:', { error: error instanceof Error ? error.message : 'Unknown error' });
+initializeDatabase().catch((error) => {
+	log.error('Failed to initialize database:', {
+		error: error instanceof Error ? error.message : 'Unknown error'
+	});
 });
 
 export const testConnection = async () => {
-    const result = await db.query.users.findMany();
-    log.debug('Test connection result:', result);
+	const result = await db.query.users.findMany();
+	log.debug('Test connection result:', result);
 };
 
 export default db;

@@ -3,16 +3,20 @@
 ## Issues Fixed:
 
 ### 1. Color Picker Button Gradient Preview
+
 **Problem**: The color picker button wasn't showing gradient preview correctly.
 **Fix**: Updated `displayStyle` in `color-picker-256.svelte` to use consistent `background` property instead of `background-color`.
 
-### 2. Text Input Gradient Display  
+### 2. Text Input Gradient Display
+
 **Problem**: Text input only showed the first color of a gradient.
 **Fix**: This is by design to preserve the input background. Added a visual gradient indicator next to the input field in `chat-room.svelte` when gradient mode is active.
 
 ### 3. Chat Messages Formatting
+
 **Problem**: Messages weren't displaying with user-specific fonts, styles and colors.
 **Fixes**:
+
 - Updated `sendMessage` function to accept and pass `textStyle` parameter
 - Added `styleData` field to `SendMessageRequest` payload type
 - Updated server-side message handler to save `styleData` and `hasFormatting` fields
@@ -41,6 +45,7 @@
 ## Testing:
 
 To test the fixes:
+
 1. Open the chat window
 2. Select a gradient using the color picker (add 2-3 colors)
 3. Choose a font and adjust size
