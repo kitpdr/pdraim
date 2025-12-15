@@ -1,4 +1,4 @@
-import type { Handle } from '@sveltejs/kit';
+import type { Handle, ServerInit } from '@sveltejs/kit';
 import db from '$lib/db/db.server';
 import { handleRateLimit } from '$lib/api/rate-limiter';
 import { users } from '$lib/db/schema';
@@ -6,6 +6,7 @@ import { createLogger } from '$lib/utils/logger.server';
 import { ensureDefaultChatRoom } from '$lib/utils/chat.server';
 import { validateSessionToken } from '$lib/api/session.server';
 import { setSessionTokenCookie, deleteSessionTokenCookie } from '$lib/api/session.cookie';
+import { runMigrations } from '$lib/db/migrate';
 
 const log = createLogger('hooks-server');
 
@@ -19,18 +20,23 @@ async function setAllUsersOffline() {
 	}
 }
 
-// Initialize server
-Promise.resolve()
-	.then(async () => {
-		log.info('Initializing server...');
+// SvelteKit server initialization hook (runs once before first request)
+export const init: ServerInit = async () => {
+	log.info('Initializing server...');
+	try {
+		// Only run migrations in Node.js environment (dev mode)
+		// In production (Cloudflare Workers), migrations run via CI before deploy
+		if (typeof process !== 'undefined' && process.versions?.node) {
+			await runMigrations(db);
+		}
 		await ensureDefaultChatRoom(db);
 		await setAllUsersOffline();
 		log.info('Server initialized successfully');
-	})
-	.catch((error: unknown) => {
+	} catch (error: unknown) {
 		log.error('Failed to initialize server:', { error });
-		process.exit(1);
-	});
+		throw error;
+	}
+};
 
 export const handle: Handle = async ({ event, resolve }) => {
 	log.debug('Handling request', { path: event.url.pathname });
