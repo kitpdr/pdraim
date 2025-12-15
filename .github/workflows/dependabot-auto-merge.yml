@@ -20,7 +20,7 @@ jobs:
           github-token: '${{ secrets.GITHUB_TOKEN }}'
       - name: Wait for CI to pass
         if: steps.metadata.outputs.update-type == 'version-update:semver-minor' || steps.metadata.outputs.update-type == 'version-update:semver-patch'
-        run: gh pr checks "$PR_URL" --watch --fail-level all
+        run: gh pr checks "$PR_URL" --watch
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
