@@ -8,7 +8,7 @@ import tailwindcss from '@tailwindcss/vite';
  * This project uses two logging systems:
  * 1. Console logging (development/client-side) - controlled by console stripping
  * 2. Pino logging (server-side) - controlled by LOG_LEVEL
- * 
+ *
  * LOG_LEVEL affects both systems:
  * - error: only error logs
  * - warn: warn and error logs
@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => {
 	// Load env file based on `mode` value
 	const env = loadEnv(mode, process.cwd(), '');
 	const logLevel = env.LOG_LEVEL || (mode === 'development' ? 'debug' : 'info');
-	
+
 	console.log(`Building with LOG_LEVEL=${logLevel} in ${mode} mode`);
 
 	return {
@@ -50,7 +50,7 @@ export default defineConfig(({ mode }) => {
 					// Strip console methods based on LOG_LEVEL
 					pure_funcs: getConsoleFuncsToStrip(logLevel)
 				}
-			},
+			}
 		},
 		// Make LOG_LEVEL available to client-side code
 		define: {
