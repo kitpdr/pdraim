@@ -149,17 +149,6 @@ export async function handleRateLimit(event: RequestEvent): Promise<Response | n
 	const { limited, retryAfter } = isRateLimited(ip, endpointType, isAuthenticated);
 
 	if (limited) {
-		// Create debug headers
-		const debugHeaders = {
-			'X-Debug-Is-Authenticated': isAuthenticated.toString(),
-			'X-Debug-Has-User': Boolean(event.locals.user).toString(),
-			'X-Debug-Has-Session': Boolean(event.locals.session).toString(),
-			'X-Debug-Endpoint-Type': endpointType,
-			'X-Debug-Rate-Limit-Points': isAuthenticated
-				? RATE_LIMITS.sse.authenticated.points.toString()
-				: RATE_LIMITS.sse.unauthenticated.points.toString()
-		};
-
 		// Construct a user-friendly error message
 		let errorMessage = 'Too many requests. ';
 		if (endpointType === 'sse') {
@@ -172,31 +161,47 @@ export async function handleRateLimit(event: RequestEvent): Promise<Response | n
 			errorMessage += 'Please try again later.';
 		}
 
-		return new Response(
-			JSON.stringify({
-				error: errorMessage,
-				retryAfter: Math.ceil((retryAfter || 0) / 1000),
-				endpointType,
+		// Build response body - only include debug info in development
+		const responseBody: Record<string, unknown> = {
+			error: errorMessage,
+			retryAfter: Math.ceil((retryAfter || 0) / 1000)
+		};
+
+		// Only include potentially sensitive info in dev mode
+		if (isDev) {
+			responseBody.endpointType = endpointType;
+			responseBody.isAuthenticated = isAuthenticated;
+			responseBody.debug = {
 				isAuthenticated,
-				debug: {
-					isAuthenticated,
-					hasUser: Boolean(event.locals.user),
-					hasSession: Boolean(event.locals.session),
-					endpointType,
-					rateLimitPoints: isAuthenticated
-						? RATE_LIMITS.sse.authenticated.points
-						: RATE_LIMITS.sse.unauthenticated.points
-				}
-			}),
-			{
-				status: 429,
-				headers: {
-					'Content-Type': 'application/json',
-					'Retry-After': Math.ceil((retryAfter || 0) / 1000).toString(),
-					...debugHeaders
-				}
-			}
-		);
+				hasUser: Boolean(event.locals.user),
+				hasSession: Boolean(event.locals.session),
+				endpointType,
+				rateLimitPoints: isAuthenticated
+					? RATE_LIMITS.sse.authenticated.points
+					: RATE_LIMITS.sse.unauthenticated.points
+			};
+		}
+
+		// Build headers - only include debug headers in development
+		const headers: Record<string, string> = {
+			'Content-Type': 'application/json',
+			'Retry-After': Math.ceil((retryAfter || 0) / 1000).toString()
+		};
+
+		if (isDev) {
+			headers['X-Debug-Is-Authenticated'] = isAuthenticated.toString();
+			headers['X-Debug-Has-User'] = Boolean(event.locals.user).toString();
+			headers['X-Debug-Has-Session'] = Boolean(event.locals.session).toString();
+			headers['X-Debug-Endpoint-Type'] = endpointType;
+			headers['X-Debug-Rate-Limit-Points'] = isAuthenticated
+				? RATE_LIMITS.sse.authenticated.points.toString()
+				: RATE_LIMITS.sse.unauthenticated.points.toString();
+		}
+
+		return new Response(JSON.stringify(responseBody), {
+			status: 429,
+			headers
+		});
 	}
 
 	return null;
