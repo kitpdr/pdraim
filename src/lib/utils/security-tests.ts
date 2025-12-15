@@ -175,7 +175,7 @@ async function runCSSInjectionTests(): Promise<SecurityTestResult[]> {
 
 	for (const vector of CSS_INJECTION_VECTORS) {
 		try {
-			const testStyle = { ...DEFAULT_TEXT_STYLE, color: 'red' as any };
+			const testStyle = { ...DEFAULT_TEXT_STYLE, color: 'red' };
 			const output = await formatText(`Test with style`, testStyle, true);
 			const vulnerabilities = detectVulnerabilities(output);
 
@@ -324,7 +324,7 @@ export async function quickSecurityCheck(input: string): Promise<boolean> {
 		const output = await formatText(input, DEFAULT_TEXT_STYLE, true);
 		const vulnerabilities = detectVulnerabilities(output);
 		return vulnerabilities.length === 0;
-	} catch (error) {
+	} catch {
 		// Errors on malicious input are acceptable
 		return true;
 	}
@@ -340,7 +340,7 @@ export function testStyleValidation(): boolean {
 		// Invalid styles (should be sanitized)
 		{ fontFamily: 'malicious-font', fontSize: 999, color: 'invalid-color' },
 		{ fontFamily: 'tahoma', fontSize: -10, color: 'red' },
-		{ fontFamily: 'tahoma', fontSize: 'invalid' as any, color: 'red' }
+		{ fontFamily: 'tahoma', fontSize: 'invalid' as unknown as number, color: 'red' }
 	];
 
 	for (const testCase of testCases) {

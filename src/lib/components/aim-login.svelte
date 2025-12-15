@@ -2,7 +2,6 @@
 <script lang="ts">
 	import { draggable } from '$lib/actions/draggable';
 	import type { RegisterResponse, RegisterResponseError } from '$lib/types/payloads';
-	import type { User, SafeUser } from '$lib/types/chat';
 	import { invalidateAll } from '$app/navigation';
 	import { chatState } from '$lib/states/chat.svelte';
 	import { createSafeUser } from '$lib/types/chat';
@@ -11,16 +10,10 @@
 	import {
 		loginSchema,
 		createRegistrationSchema,
-		validatePasswordStrength,
 		DEFAULT_PASSWORD_CONSTRAINTS,
 		type PasswordConstraints
 	} from '../validation/password';
-
-	interface $$Props {
-		showAuth: boolean;
-		onLoginSuccess?: (user: SafeUser | null) => void;
-		activeTab?: 'signin' | 'signup';
-	}
+	import { z } from 'zod';
 
 	let { showAuth = $bindable(), onLoginSuccess, activeTab: initialTab = 'signin' } = $props();
 
@@ -128,8 +121,11 @@
 		try {
 			loginSchema.parse({ username: siUsername.trim(), password: siPassword.trim() });
 			return null;
-		} catch (err: any) {
-			return err.errors?.[0]?.message || 'Invalid input';
+		} catch (err) {
+			if (err instanceof z.ZodError) {
+				return err.issues?.[0]?.message || 'Invalid input';
+			}
+			return 'Invalid input';
 		}
 	}
 
@@ -144,8 +140,11 @@
 				turnstileToken: suTurnstileToken
 			});
 			return null;
-		} catch (err: any) {
-			return err.errors?.[0]?.message || 'Invalid input';
+		} catch (err) {
+			if (err instanceof z.ZodError) {
+				return err.issues?.[0]?.message || 'Invalid input';
+			}
+			return 'Invalid input';
 		}
 	}
 

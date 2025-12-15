@@ -5,13 +5,15 @@
 		DEFAULT_PASSWORD_CONSTRAINTS
 	} from '../validation/password';
 
-	interface $$Props {
+	let {
+		password = '',
+		constraints = DEFAULT_PASSWORD_CONSTRAINTS,
+		showDetails = true
+	} = $props<{
 		password: string;
 		constraints?: PasswordConstraints;
 		showDetails?: boolean;
-	}
-
-	let { password = '', constraints = DEFAULT_PASSWORD_CONSTRAINTS, showDetails = true } = $props();
+	}>();
 
 	// Reactive validation result
 	let validation = $derived(validatePasswordStrength(password, constraints));
@@ -43,7 +45,7 @@
 		{#if showDetails}
 			<!-- Requirements checklist -->
 			<div class="requirements-list">
-				{#each validation.requirements as requirement}
+				{#each validation.requirements as requirement (requirement.message)}
 					<div class="requirement {requirement.met ? 'met' : 'unmet'}">
 						<span class="requirement-icon">
 							{requirement.met ? '✓' : '✗'}
@@ -56,7 +58,7 @@
 			<!-- Error messages -->
 			{#if validation.errors.length > 0}
 				<div class="error-messages">
-					{#each validation.errors as error}
+					{#each validation.errors as error (error)}
 						<div class="error-message">{error}</div>
 					{/each}
 				</div>

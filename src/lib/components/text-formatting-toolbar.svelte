@@ -1,8 +1,6 @@
 <script lang="ts">
 	import {
 		RETRO_FONTS,
-		CLASSIC_COLORS,
-		GRADIENT_PRESETS,
 		DEFAULT_TEXT_STYLE,
 		type TextStyle,
 		type FontFamily
@@ -12,10 +10,10 @@
 	// Props
 	let {
 		style = $bindable(DEFAULT_TEXT_STYLE),
-		onPreviewText,
+		onPreviewText: _onPreviewText,
 		compact = true,
 		showFontSelector = false,
-		showGradients = true
+		showGradients: _showGradients = true
 	} = $props<{
 		style?: TextStyle;
 		onPreviewText?: (text: string) => void;
@@ -23,6 +21,8 @@
 		showFontSelector?: boolean;
 		showGradients?: boolean;
 	}>();
+	void _showGradients; // Reserved for future use
+	void _onPreviewText; // Reserved for future use
 
 	// State
 	let currentColor = $state(style.color || '#000000');
@@ -75,13 +75,6 @@
 		}
 	}
 
-	// Preview text change
-	function previewTextChanged() {
-		if (onPreviewText) {
-			onPreviewText('Sample formatted text');
-		}
-	}
-
 	// Update internal state when style prop changes
 	$effect(() => {
 		currentColor = style.color || '#000000';
@@ -99,7 +92,7 @@
 			onchange={(e) => selectFont((e.target as HTMLSelectElement).value as FontFamily)}
 			title="Font Family"
 		>
-			{#each Object.entries(RETRO_FONTS) as [key, font]}
+			{#each Object.entries(RETRO_FONTS) as [key, font] (key)}
 				<option value={key} style="font-family: {font.stack};">{font.name}</option>
 			{/each}
 		</select>

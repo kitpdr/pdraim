@@ -1,6 +1,5 @@
 // At the top of the file, before any code
 declare global {
-	// eslint-disable-next-line no-var
 	var __sseIntervalsStarted: boolean;
 }
 

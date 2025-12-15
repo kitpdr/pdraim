@@ -4,7 +4,7 @@ import remarkRehype from 'remark-rehype';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import rehypeStringify from 'rehype-stringify';
 import type { TextStyle } from '../types/text-formatting';
-import { generateCSSStyle, validateTextStyle } from '../types/text-formatting';
+import { validateTextStyle } from '../types/text-formatting';
 
 // Define allowed HTML tags and attributes for security
 const ALLOWED_SCHEMA = {
@@ -24,15 +24,6 @@ const ALLOWED_SCHEMA = {
 		style: []
 	}
 };
-
-// Custom rehype plugin to apply text styles
-function rehypeApplyStyles(userStyle: TextStyle) {
-	return function (tree: any) {
-		// We don't need to apply styles here anymore
-		// The formatted-message component handles all styling
-		return tree;
-	};
-}
 
 // BBCode-style formatting patterns
 const BB_CODE_PATTERNS: Array<{
@@ -130,8 +121,8 @@ export async function formatText(
 		// If text is empty, return empty string
 		if (!text) return '';
 
-		// Validate and apply user style
-		const validatedStyle = validateTextStyle(userStyle || {});
+		// Validate user style (ensures safe values)
+		validateTextStyle(userStyle || {});
 
 		// Preprocess the text for formatting if allowed
 		let processedText = text;

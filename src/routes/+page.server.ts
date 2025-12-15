@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { validateSessionToken } from '$lib/api/session.server';
 import db from '$lib/db/db.server';
-import { userTextPreferences, users, messages } from '$lib/db/schema';
+import { messages } from '$lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { DEFAULT_TEXT_STYLE, type TextStyle } from '$lib/types/text-formatting';
 

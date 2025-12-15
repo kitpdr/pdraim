@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { chatState } from '$lib/states/chat.svelte';
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 
 	let { children, data } = $props();

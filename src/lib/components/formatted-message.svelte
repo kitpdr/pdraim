@@ -1,9 +1,8 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import type { EnrichedMessage } from '../types/chat';
 	import type { TextStyle } from '../types/text-formatting';
 	import { formatText, createGradientText } from '../utils/text-formatter';
-	import { DEFAULT_TEXT_STYLE, generateCSSStyle, RETRO_FONTS } from '../types/text-formatting';
+	import { DEFAULT_TEXT_STYLE } from '../types/text-formatting';
 
 	// Props
 	let { message, allowFormatting = true } = $props<{
@@ -175,16 +174,19 @@
 		})()}
 		{#if parsedStyle?.gradient && Array.isArray(parsedStyle.gradient) && parsedStyle.gradient.length > 1}
 			<!-- Gradient messages are already wrapped properly -->
+			<!-- eslint-disable-next-line svelte/no-at-html-tags -- formattedContent is sanitized by createGradientText -->
 			{@html formattedContent}
 		{:else}
 			<!-- Regular formatted messages -->
 			<span class={getMessageClasses()} style={getMessageStyles()}>
+				<!-- eslint-disable-next-line svelte/no-at-html-tags -- formattedContent is sanitized by formatText -->
 				{@html formattedContent}
 			</span>
 		{/if}
 	{:else}
 		<!-- Plain messages -->
 		<span class={getMessageClasses()}>
+			<!-- eslint-disable-next-line svelte/no-at-html-tags -- formattedContent is sanitized by escapeHtml -->
 			{@html formattedContent}
 		</span>
 	{/if}

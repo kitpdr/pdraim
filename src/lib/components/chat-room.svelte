@@ -1,19 +1,12 @@
 <script lang="ts">
 	import { chatState } from '../states/chat.svelte';
-	import type {
-		MessageType,
-		User,
-		ChatRoom,
-		Message,
-		EnrichedMessage,
-		SafeUser
-	} from '../types/chat';
+	import type { User, Message, EnrichedMessage, SafeUser } from '../types/chat';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { draggable } from '$lib/actions/draggable';
 	import { resizable } from '$lib/actions/resizable';
 	import { maximizable } from '$lib/actions/maximizable';
-	import { minimizable } from '$lib/actions/minimizable';
+	import { minimizable, type MinimizableNode } from '$lib/actions/minimizable';
 	import LoadingButton from './ui/button-loading.svelte';
 	import Tooltip from './ui/tooltip.svelte';
 	import LoadingDots from './ui/loading-dots.svelte';
@@ -49,7 +42,6 @@
 		...initialTextStyle,
 		color: initialTextStyle.color || '#000000' // Ensure we always have a valid color
 	});
-	let showFormattingToolbar = $state(true);
 
 	// Rate limiting state
 	let cooldownEndTime = $state<number | null>(null);
@@ -297,39 +289,6 @@
 		}
 	}
 
-	function formatLastSeen(lastSeen: number | null | undefined) {
-		if (!lastSeen) return 'Never';
-
-		const now = Date.now();
-		const diff = now - lastSeen;
-
-		// Less than a minute
-		if (diff < 60000) {
-			return 'Just now';
-		}
-
-		// Less than an hour
-		if (diff < 3600000) {
-			const minutes = Math.floor(diff / 60000);
-			return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-		}
-
-		// Less than a day
-		if (diff < 86400000) {
-			const hours = Math.floor(diff / 3600000);
-			return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-		}
-
-		// Less than a week
-		if (diff < 604800000) {
-			const days = Math.floor(diff / 86400000);
-			return `${days} day${days > 1 ? 's' : ''} ago`;
-		}
-
-		// More than a week
-		return new Date(lastSeen).toLocaleDateString();
-	}
-
 	function handleDragMove(event: CustomEvent<{ x: number; y: number }>) {
 		windowX = event.detail.x;
 		windowY = event.detail.y;
@@ -344,7 +303,7 @@
 		if (node) {
 			// If minimized, restore first
 			if (isMinimized) {
-				const minimizableNode = node as any;
+				const minimizableNode = node as unknown as MinimizableNode;
 				if (minimizableNode?.toggleMinimize) {
 					minimizableNode.toggleMinimize();
 				}
@@ -509,7 +468,9 @@
 						aria-label="Minimize"
 						onclick={(e) => {
 							e.stopPropagation();
-							const node = (e.currentTarget as HTMLElement).closest('.window') as any;
+							const node = (e.currentTarget as HTMLElement).closest(
+								'.window'
+							) as MinimizableNode | null;
 							if (node?.toggleMinimize) node.toggleMinimize();
 						}}
 					></button>
@@ -526,7 +487,9 @@
 						aria-label="Minimize"
 						onclick={(e) => {
 							e.stopPropagation();
-							const node = (e.currentTarget as HTMLElement).closest('.window') as any;
+							const node = (e.currentTarget as HTMLElement).closest(
+								'.window'
+							) as MinimizableNode | null;
 							if (node?.toggleMinimize) node.toggleMinimize();
 						}}
 					></button>
@@ -695,7 +658,7 @@
 					<p style="margin: 0 0 0.3rem 0;">
 						<strong>{totalUsers} membre{totalUsers > 1 ? 's' : ''}</strong>
 					</p>
-					{#each onlineUsers as user}
+					{#each onlineUsers as user (user.id)}
 						<div class="user" class:offline={user.status === 'offline'}>
 							<span class="status-icon">{getStatusIcon(user.status)}</span>
 							<div class="user-info">
