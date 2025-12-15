@@ -64,12 +64,7 @@ function startTimeoutCheck() {
 					status: 'offline',
 					lastSeen: now
 				})
-				.where(
-					and(
-						ne(users.status, 'offline'),
-						lt(users.lastSeen, timeoutThreshold)
-					)
-				)
+				.where(and(ne(users.status, 'offline'), lt(users.lastSeen, timeoutThreshold)))
 				.returning({
 					id: users.id,
 					nickname: users.nickname,
@@ -347,7 +342,11 @@ export const GET: RequestHandler = async ({ request, locals }) => {
 			if (cleanupListener) cleanupListener();
 
 			const maskedUserId = userId.slice(0, 8);
-			log.info('Connection closed', { userId: maskedUserId, connectionId: connectionId?.slice(0, 8), reason });
+			log.info('Connection closed', {
+				userId: maskedUserId,
+				connectionId: connectionId?.slice(0, 8),
+				reason
+			});
 
 			// Remove connection from manager
 			const { isLastConnection } = sseManager.removeConnection(connectionId);
@@ -379,7 +378,7 @@ export const GET: RequestHandler = async ({ request, locals }) => {
 		headers: {
 			'Content-Type': 'text/event-stream',
 			'Cache-Control': 'no-cache',
-			'Connection': 'keep-alive',
+			Connection: 'keep-alive',
 			'X-Accel-Buffering': 'no' // Disable nginx buffering
 		}
 	});
