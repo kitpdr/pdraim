@@ -9,6 +9,21 @@ import { setSessionTokenCookie, deleteSessionTokenCookie } from '$lib/api/sessio
 
 const log = createLogger('hooks-server');
 
+// Add security headers to response
+function addSecurityHeaders(response: Response): Response {
+	const headers = new Headers(response.headers);
+	headers.set('X-Frame-Options', 'DENY');
+	headers.set('X-Content-Type-Options', 'nosniff');
+	headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+	headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
+	return new Response(response.body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers
+	});
+}
+
 // Set all users to offline on server start
 async function setAllUsersOffline() {
 	try {
@@ -63,7 +78,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if ((isPublicChatRequest || isPublicRoomRequest) && !event.locals.session) {
 		log.debug('Public request accessed', { path: event.url.pathname });
 		const response = await resolve(event);
-		return response;
+		return addSecurityHeaders(response);
 	}
 
 	// Public routes that don't require authentication
@@ -80,12 +95,13 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (publicRoutes.includes(event.url.pathname)) {
 		log.debug('Public route accessed', { path: event.url.pathname });
 		const response = await resolve(event);
-		return response;
+		return addSecurityHeaders(response);
 	}
 
 	// Skip rate limiting for SSE endpoint when authenticated
 	if (event.url.pathname.startsWith('/api/sse')) {
-		return await resolve(event);
+		const response = await resolve(event);
+		return addSecurityHeaders(response);
 	}
 
 	// Apply rate limiting for non-public endpoints
@@ -102,5 +118,5 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	const response = await resolve(event);
-	return response;
+	return addSecurityHeaders(response);
 };

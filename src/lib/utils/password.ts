@@ -32,7 +32,6 @@ function hexToBuffer(hex: string): Uint8Array {
 async function derivePasswordHash(password: string, salt: Uint8Array): Promise<string> {
 	const enc = new TextEncoder();
 	const keyMaterial = enc.encode(password);
-	console.debug('$state: Key material for password derivation', keyMaterial);
 	const key = await crypto.subtle.importKey('raw', keyMaterial, { name: 'PBKDF2' }, false, [
 		'deriveBits'
 	]);
@@ -46,7 +45,6 @@ async function derivePasswordHash(password: string, salt: Uint8Array): Promise<s
 		key,
 		512
 	);
-	console.debug('$state: Derived bits', derivedBits);
 	return bufferToHex(derivedBits);
 }
 
@@ -57,7 +55,6 @@ async function derivePasswordHash(password: string, salt: Uint8Array): Promise<s
  */
 export async function hashPassword(password: string): Promise<string> {
 	const salt = crypto.getRandomValues(new Uint8Array(16));
-	console.debug('$state: Generated salt', salt);
 	const saltHex = bufferToHex(salt.buffer);
 	const hash = await derivePasswordHash(password, salt);
 	return `${saltHex}:${hash}`;
@@ -72,8 +69,6 @@ export async function hashPassword(password: string): Promise<string> {
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
 	const [saltHex, hashValue] = hash.split(':');
 	const salt = hexToBuffer(saltHex);
-	console.debug('$state: Salt extracted from stored hash', salt);
 	const derivedHash = await derivePasswordHash(password, salt);
-	console.debug('$state: Derived hash for verification', derivedHash);
 	return derivedHash === hashValue;
 }
