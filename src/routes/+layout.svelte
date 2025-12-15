@@ -1,5 +1,5 @@
 <script lang="ts">
-	import '../app.css';;
+	import '../app.css';
 	import { chatState } from '$lib/states/chat.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
@@ -24,12 +24,12 @@
 
 	async function updateUserStatus(status: UserStatus) {
 		if (!data.user?.id || updateInProgress) return;
-		
+
 		const now = Date.now();
 		const timeSinceLastUpdate = now - lastStatusSentAt;
-		
+
 		if (
-			status === lastSentStatus && 
+			status === lastSentStatus &&
 			timeSinceLastUpdate < FORCE_UPDATE_INTERVAL &&
 			timeSinceLastUpdate < THROTTLE_TIME_MS
 		) {
@@ -57,18 +57,18 @@
 		try {
 			if (status === 'online' && !document.cookie.includes('session=')) {
 				console.debug('Waiting for session cookie before status update...');
-				await new Promise(resolve => setTimeout(resolve, 500));
+				await new Promise((resolve) => setTimeout(resolve, 500));
 			}
 
 			const response = await fetch('/api/status', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ 
+				body: JSON.stringify({
 					status,
 					lastSeen: timestamp
 				})
 			});
-			
+
 			if (!response.ok) {
 				console.error('Failed to update user status:', await response.json());
 			} else {
@@ -91,13 +91,13 @@
 		if (idleTimeout) {
 			window.clearTimeout(idleTimeout);
 		}
-		
+
 		lastUserActivity = Date.now();
-		
+
 		if (lastSentStatus === 'idle') {
 			updateUserStatus('online');
 		}
-		
+
 		idleTimeout = window.setTimeout(() => {
 			if (isVisible && Date.now() - lastUserActivity >= IDLE_TIMEOUT) {
 				updateUserStatus('idle');
@@ -111,7 +111,7 @@
 
 	function startStatusTicker() {
 		if (statusInterval) return;
-		
+
 		console.debug('Starting status ticker');
 		const tickHandler = () => {
 			if (isVisible && lastSentStatus !== 'idle') {
@@ -132,7 +132,7 @@
 	function handleVisibilityChange() {
 		if (!browser) return;
 		isVisible = document.visibilityState === 'visible';
-		
+
 		if (isVisible) {
 			resetIdleTimer();
 			updateUserStatus('online');
@@ -162,12 +162,12 @@
 
 		// Set initial online status
 		updateUserStatus('online');
-		
+
 		// Start monitoring for user activity
 		window.addEventListener('mousemove', handleUserActivity);
 		window.addEventListener('keydown', handleUserActivity);
 		window.addEventListener('click', handleUserActivity);
-		
+
 		// Initialize idle timer
 		resetIdleTimer();
 
@@ -176,7 +176,7 @@
 
 		// Add visibility change listener
 		document.addEventListener('visibilitychange', handleVisibilityChange);
-		
+
 		// Add beforeunload listener for cleanup
 		window.addEventListener('beforeunload', cleanup);
 
@@ -189,32 +189,36 @@
 
 	$effect(() => {
 		if (!browser) return;
-		
+
 		const currentUserJson = data.user ? JSON.stringify(data.user) : null;
 		if (currentUserJson === lastUserUpdate) {
 			console.debug('Skipping duplicate user update');
 			return;
 		}
-		
+
 		lastUserUpdate = currentUserJson;
-		
+
 		console.debug('Layout reactive update - Session state:', {
 			timestamp: new Date().toISOString(),
 			hasUser: !!data.user,
-			userDetails: data.user ? {
-				nickname: data.user.nickname,
-				status: data.user.status,
-				id: data.user.id
-			} : null,
+			userDetails: data.user
+				? {
+						nickname: data.user.nickname,
+						status: data.user.status,
+						id: data.user.id
+					}
+				: null,
 			hasSession: !!data.session,
-			sessionDetails: data.session ? {
-				id: data.session.id,
-				expiresAt: new Date(data.session.expiresAt)
-			} : null,
+			sessionDetails: data.session
+				? {
+						id: data.session.id,
+						expiresAt: new Date(data.session.expiresAt)
+					}
+				: null,
 			cookiePresent: document.cookie.includes('session='),
 			isVisible
 		});
-		
+
 		if (data.session?.id) {
 			console.debug('Updating global chatState with data.user:', data.user);
 			chatState.setCurrentUser(data.user);
@@ -227,7 +231,7 @@
 	<meta name="description" content={data.meta.description} />
 	<meta name="keywords" content={data.meta.keywords} />
 	<meta name="language" content="fr" />
-	
+
 	<!-- Open Graph / Facebook -->
 	<meta property="og:locale" content={data.meta.locale} />
 	<meta property="og:type" content={data.meta.type} />
@@ -235,14 +239,14 @@
 	<meta property="og:title" content={data.meta.title} />
 	<meta property="og:description" content={data.meta.description} />
 	<meta property="og:image" content={data.meta.ogImage} />
-	
+
 	<!-- Twitter -->
 	<meta property="twitter:card" content="summary_large_image" />
 	<meta property="twitter:url" content={data.meta.url} />
 	<meta property="twitter:title" content={data.meta.title} />
 	<meta property="twitter:description" content={data.meta.description} />
 	<meta property="twitter:image" content={data.meta.ogImage} />
-	
+
 	<!-- Additional Meta Tags -->
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="theme-color" content="#2195f2" />
@@ -266,11 +270,11 @@
 		overflow: hidden;
 		background: linear-gradient(
 			to bottom,
-			#2195f2 0%,    /* Lighter blue at the top */
-			#4aa6e2 25%,   /* Mid-light blue */
-			#7ab8e0 50%,   /* Mid blue */
-			#86c55c 75%,   /* Blue-green transition */
-			#90d047 100%   /* Bright green at the bottom */
+			#2195f2 0%,
+			/* Lighter blue at the top */ #4aa6e2 25%,
+			/* Mid-light blue */ #7ab8e0 50%,
+			/* Mid blue */ #86c55c 75%,
+			/* Blue-green transition */ #90d047 100% /* Bright green at the bottom */
 		);
 	}
 </style>

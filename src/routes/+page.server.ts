@@ -6,58 +6,58 @@ import { eq, desc } from 'drizzle-orm';
 import { DEFAULT_TEXT_STYLE, type TextStyle } from '$lib/types/text-formatting';
 
 export const load: PageServerLoad = async ({ cookies }) => {
-    const token = cookies.get('session');
-    
-    if (!token) {
-        return {
-            user: null,
-            lastTextStyle: DEFAULT_TEXT_STYLE
-        };
-    }
+	const token = cookies.get('session');
 
-    try {
-        const { user } = await validateSessionToken(token);
-        
-        if (!user) {
-            return {
-                user: null,
-                lastTextStyle: DEFAULT_TEXT_STYLE
-            };
-        }
+	if (!token) {
+		return {
+			user: null,
+			lastTextStyle: DEFAULT_TEXT_STYLE
+		};
+	}
 
-        // Get user's last used text styling from their most recent message
-        const lastMessage = await db.query.messages.findFirst({
-            where: eq(messages.senderId, user.id),
-            orderBy: [desc(messages.timestamp)],
-            columns: {
-                styleData: true
-            }
-        });
+	try {
+		const { user } = await validateSessionToken(token);
 
-        let lastTextStyle: TextStyle = DEFAULT_TEXT_STYLE;
+		if (!user) {
+			return {
+				user: null,
+				lastTextStyle: DEFAULT_TEXT_STYLE
+			};
+		}
 
-        if (lastMessage?.styleData) {
-            try {
-                const parsedStyle = JSON.parse(lastMessage.styleData);
-                // Merge with default style to ensure all required properties
-                lastTextStyle = {
-                    ...DEFAULT_TEXT_STYLE,
-                    ...parsedStyle
-                };
-            } catch (error) {
-                console.warn('Failed to parse last text style:', error);
-            }
-        }
+		// Get user's last used text styling from their most recent message
+		const lastMessage = await db.query.messages.findFirst({
+			where: eq(messages.senderId, user.id),
+			orderBy: [desc(messages.timestamp)],
+			columns: {
+				styleData: true
+			}
+		});
 
-        return {
-            user,
-            lastTextStyle
-        };
-    } catch (error) {
-        console.error('Error loading page data:', error);
-        return {
-            user: null,
-            lastTextStyle: DEFAULT_TEXT_STYLE
-        };
-    }
+		let lastTextStyle: TextStyle = DEFAULT_TEXT_STYLE;
+
+		if (lastMessage?.styleData) {
+			try {
+				const parsedStyle = JSON.parse(lastMessage.styleData);
+				// Merge with default style to ensure all required properties
+				lastTextStyle = {
+					...DEFAULT_TEXT_STYLE,
+					...parsedStyle
+				};
+			} catch (error) {
+				console.warn('Failed to parse last text style:', error);
+			}
+		}
+
+		return {
+			user,
+			lastTextStyle
+		};
+	} catch (error) {
+		console.error('Error loading page data:', error);
+		return {
+			user: null,
+			lastTextStyle: DEFAULT_TEXT_STYLE
+		};
+	}
 };

@@ -1,20 +1,22 @@
 # Bienvenue
 
-Ce projet *sandbox*, à but non lucratif, recrée l'ambiance des salons de discussion de l'époque AOL/AIM ; il est accessible à l'adresse : https://pdraim.org.
+Ce projet _sandbox_, à but non lucratif, recrée l'ambiance des salons de discussion de l'époque AOL/AIM ; il est accessible à l'adresse : https://pdraim.org.
 
 ## Technologies utilisées
+
 - SvelteKit (version 5)
 - Node.js
 - TypeScript
 - XP.css
 - Tailwind CSS
 
-
 ## Prérequis
+
 - Node.js (>=22.13.0)
 - npm ou pnpm pour la gestion des packages
 
 ## Installation
+
 Clonez le dépôt et installez les dépendances :
 
 ```bash
@@ -24,6 +26,7 @@ pnpm install
 ```
 
 ## Lancement du projet
+
 Lancez le projet en mode développement :
 
 ```bash
@@ -35,8 +38,10 @@ pnpm dev
 Le site sera accessible via http://localhost:5173 par défaut.
 
 ## Contribution
+
 Toute contribution visant à améliorer le réalisme et la qualité du projet est la bienvenue !
 Pour contribuer :
+
 - Forkez ce dépôt
 - Créez une branche pour vos modifications
 - Envoyez une pull request en décrivant clairement vos changements
@@ -60,6 +65,7 @@ npm run db:push
 # ou
 pnpm db:push
 ```
+
 Vous pouvez avoir un aperçu du contenu de la base en utilisant :
 
 ```bash
@@ -67,7 +73,8 @@ npx drizzle-kit studio
 ```
 
 ## Documentation et Ressources
+
 Si vous n'avez jamais utilisé Svelte/Kit, référez-vous aux documentations officielles :
+
 - [Documentation de Svelte](https://svelte.dev/docs/)
 - [Documentation de SvelteKit](https://svelte.dev/docs/kit/@sveltejs-kit)
-
