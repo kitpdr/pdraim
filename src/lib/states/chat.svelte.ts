@@ -558,6 +558,16 @@ class ChatState {
 			}
 
 			console.debug('Message sent successfully:', data.message);
+
+			// Add message to state immediately for instant display (optimistic update)
+			// SSE deduplication will handle any duplicate when the broadcast arrives
+			if (data.message) {
+				this.messages = Array.from(
+					new Map([...this.messages, data.message].map((m) => [m.id, m])).values()
+				);
+				this.messages.sort((a, b) => a.timestamp - b.timestamp);
+			}
+
 			await invalidate('chat:messages');
 			return data;
 		} catch (error) {

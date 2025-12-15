@@ -21,7 +21,7 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 
 	try {
 		const { status } = await request.json();
-		const validStatuses = ['online', 'away', 'busy', 'offline'];
+		const validStatuses = ['online', 'away', 'busy', 'offline', 'idle'];
 		if (!validStatuses.includes(status)) {
 			log.warn('Invalid status received', { status });
 			return new Response(JSON.stringify({ success: false, error: 'Invalid status' }), {
