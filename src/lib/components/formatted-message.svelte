@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { EnrichedMessage } from '../types/chat';
 	import type { TextStyle } from '../types/text-formatting';
-	import { formatText, createGradientText } from '../utils/text-formatter';
+	import { formatText, createGradientText, escapeHtml } from '../utils/text-formatter';
 	import { DEFAULT_TEXT_STYLE } from '../types/text-formatting';
 
 	// Props
@@ -31,7 +31,6 @@
 			if (message.styleData) {
 				try {
 					style = JSON.parse(message.styleData);
-					console.debug('Parsed message style:', style, 'for message:', message.content);
 				} catch (parseError) {
 					console.warn('Failed to parse message style data:', parseError);
 				}
@@ -40,19 +39,12 @@
 			// Check if this is a gradient message
 			if (style.gradient && Array.isArray(style.gradient) && style.gradient.length > 1) {
 				// Use character-by-character gradient for better compatibility
-				console.debug(
-					'Creating gradient text with colors:',
-					style.gradient,
-					'for text:',
-					message.content
-				);
 				formattedContent = createGradientText(
 					message.content,
 					style.gradient,
 					'gradient-text-static',
 					style
 				);
-				console.debug('Generated gradient HTML:', formattedContent);
 				return;
 			}
 
@@ -72,13 +64,6 @@
 	$effect(() => {
 		processMessage();
 	});
-
-	// Utility function to escape HTML
-	function escapeHtml(text: string): string {
-		const div = document.createElement('div');
-		div.textContent = text;
-		return div.innerHTML;
-	}
 
 	// Generate inline styles for the message
 	function getMessageStyles(): string {
