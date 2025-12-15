@@ -22,6 +22,8 @@
 	--accent-foreground: hsl(240 5.9% 10%);
 	--destructive: hsl(0 72.2% 50.6%);
 	--destructive-foreground: hsl(0 0% 98%);
+	--warning: hsl(25 95% 53%);
+	--warning-foreground: hsl(0 0% 98%);
 	--ring: hsl(240 10% 3.9%);
 	--sidebar: hsl(0 0% 98%);
 	--sidebar-foreground: hsl(240 5.3% 26.1%);
@@ -54,6 +56,8 @@
 	--accent-foreground: hsl(0 0% 98%);
 	--destructive: hsl(0 62.8% 30.6%);
 	--destructive-foreground: hsl(0 0% 98%);
+	--warning: hsl(25 95% 63%);
+	--warning-foreground: hsl(0 0% 98%);
 	--ring: hsl(240 4.9% 83.9%);
 	--sidebar: hsl(240 5.9% 10%);
 	--sidebar-foreground: hsl(240 4.8% 95.9%);
@@ -91,6 +95,8 @@
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
 	--color-destructive-foreground: var(--destructive-foreground);
+	--color-warning: var(--warning);
+	--color-warning-foreground: var(--warning-foreground);
 	--color-ring: var(--ring);
 	--color-radius: var(--radius);
 	--color-sidebar: var(--sidebar);
@@ -327,21 +333,23 @@
 	word-spacing: normal;
 }
 
-/* Gradient text container uses flexbox */
+/* Gradient text container uses inline display for proper text alignment */
 .gradient-text-static {
-	display: inline-flex !important;
-	flex-wrap: wrap !important;
-	align-items: baseline !important;
+	display: inline !important;
+	vertical-align: baseline !important;
+	line-height: inherit !important;
 }
 
 /* Ensure gradient character spans don't add spacing */
-.gradient-text-static > span {
+.gradient-text-static > span,
+.gradient-text-static .gradient-char {
 	display: inline !important;
 	margin: 0 !important;
 	padding: 0 !important;
 	letter-spacing: 0 !important;
 	line-height: inherit !important;
 	font-size: inherit !important;
+	vertical-align: baseline !important;
 }
 
 /* Ensure gradient character colors from inline styles are respected */
