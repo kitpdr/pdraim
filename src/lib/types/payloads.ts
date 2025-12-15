@@ -1,4 +1,4 @@
-import type { SafeUser, Message } from "./chat";
+import type { SafeUser, Message } from './chat';
 
 // Login
 export interface LoginResponseSuccess {
@@ -40,36 +40,36 @@ export interface SessionResponseError {
 
 // Messages
 export interface SendMessageRequest {
-    content: string;
-    type?: Message['type'];
-    userId: string;
-    chatRoomId?: string;
-    styleData?: string; // JSON stringified TextStyle
+	content: string;
+	type?: Message['type'];
+	userId: string;
+	chatRoomId?: string;
+	styleData?: string; // JSON stringified TextStyle
 }
 
 export interface SendMessageResponseSuccess {
-    success: true;
-    message: Message;
+	success: true;
+	message: Message;
 }
 
 export interface SendMessageResponseError {
-    success: false;
-    error: string;
-    retryAfter?: number; // Time in ms until next allowed message
-    isRateLimited?: boolean;
+	success: false;
+	error: string;
+	retryAfter?: number; // Time in ms until next allowed message
+	isRateLimited?: boolean;
 }
 
 export type SendMessageResponse = SendMessageResponseSuccess | SendMessageResponseError;
 
 export interface GetMessagesResponseSuccess {
-    success: true;
-    messages: Message[];
-    hasMore: boolean;
+	success: true;
+	messages: Message[];
+	hasMore: boolean;
 }
 
 export interface GetMessagesResponseError {
-    success: false;
-    error: string;
+	success: false;
+	error: string;
 }
 
 export type GetMessagesResponse = GetMessagesResponseSuccess | GetMessagesResponseError;
@@ -77,13 +77,13 @@ export type GetMessagesResponse = GetMessagesResponseSuccess | GetMessagesRespon
 // ----- Public Room Payloads -----
 
 export interface PublicRoomResponseSuccess {
-    success: true;
-    buddyList: SafeUser[];
+	success: true;
+	buddyList: SafeUser[];
 }
 
 export interface PublicRoomResponseError {
-    success: false;
-    error: string;
+	success: false;
+	error: string;
 }
 
-export type PublicRoomResponse = PublicRoomResponseSuccess | PublicRoomResponseError; 
+export type PublicRoomResponse = PublicRoomResponseSuccess | PublicRoomResponseError;

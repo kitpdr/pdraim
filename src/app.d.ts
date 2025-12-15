@@ -1,6 +1,6 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 // for information about these interfaces
-import type { User, Session } from "$lib/types/chat";
+import type { User, Session } from '$lib/types/chat';
 
 declare global {
 	namespace App {
@@ -13,7 +13,7 @@ declare global {
 		// interface PageState {}
 		// interface Platform {}
 	}
-	type Window = object
+	type Window = object;
 }
 
 export {};
