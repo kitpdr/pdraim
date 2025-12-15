@@ -1,76 +1,74 @@
+import { z } from 'zod';
 import type { TextStyle } from '$lib/types/text-formatting';
 import { RETRO_FONTS } from '$lib/types/text-formatting';
 
-const MIN_FONT_SIZE = 8;
-const MAX_FONT_SIZE = 18;
-const MAX_GRADIENT_COLORS = 3;
-const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
+// Text style constraints (different from BBCode - style picker has smaller max)
+export const TEXT_STYLE_CONSTRAINTS = {
+	minFontSize: 8,
+	maxFontSize: 18,
+	maxGradientColors: 3
+};
 
+// Hex color schema
+const hexColorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid hex color format');
+
+// Font family schema - validates against RETRO_FONTS keys
+const fontFamilyKeys = Object.keys(RETRO_FONTS) as [string, ...string[]];
+const fontFamilySchema = z.enum(fontFamilyKeys);
+
+// Font size schema with clamping
+const fontSizeSchema = z.coerce
+	.number()
+	.int()
+	.transform((val) =>
+		Math.max(TEXT_STYLE_CONSTRAINTS.minFontSize, Math.min(TEXT_STYLE_CONSTRAINTS.maxFontSize, val))
+	);
+
+// Gradient schema - array of 1-3 hex colors
+const gradientSchema = z
+	.array(hexColorSchema)
+	.min(1)
+	.max(TEXT_STYLE_CONSTRAINTS.maxGradientColors)
+	.optional();
+
+// Full TextStyle schema
+const textStyleSchema = z.object({
+	fontFamily: fontFamilySchema.default('pixelated'),
+	fontSize: fontSizeSchema.default(14),
+	color: hexColorSchema.optional(),
+	gradient: gradientSchema,
+	bold: z.boolean().default(false),
+	italic: z.boolean().default(false),
+	underline: z.boolean().default(false),
+	strikethrough: z.boolean().default(false)
+});
+
+// Legacy helper functions (for backwards compatibility)
 export function validateHexColor(color: string): boolean {
-	return HEX_COLOR_REGEX.test(color);
+	return hexColorSchema.safeParse(color).success;
 }
 
 export function validateFontFamily(fontFamily: string): boolean {
-	return fontFamily in RETRO_FONTS;
+	return fontFamilySchema.safeParse(fontFamily).success;
 }
 
 export function validateFontSize(size: number): number {
-	return Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, size));
+	const result = fontSizeSchema.safeParse(size);
+	return result.success ? result.data : 14;
 }
 
 export function validateGradient(gradient: unknown): string[] | undefined {
-	if (!Array.isArray(gradient)) return undefined;
-	if (gradient.length === 0 || gradient.length > MAX_GRADIENT_COLORS) return undefined;
-
-	const validColors = gradient.filter(
-		(color) => typeof color === 'string' && validateHexColor(color)
-	);
-
-	return validColors.length === gradient.length ? validColors : undefined;
+	const result = gradientSchema.safeParse(gradient);
+	return result.success ? result.data : undefined;
 }
 
 export function validateTextStyle(style: unknown): TextStyle | null {
 	if (!style || typeof style !== 'object') return null;
 
-	const rawStyle = style as Record<string, unknown>;
+	const result = textStyleSchema.safeParse(style);
+	if (!result.success) return null;
 
-	const validated: TextStyle = {
-		fontFamily: 'pixelated',
-		fontSize: 14,
-		bold: false,
-		italic: false,
-		underline: false,
-		strikethrough: false
-	};
-
-	// Validate font family
-	if (typeof rawStyle.fontFamily === 'string' && validateFontFamily(rawStyle.fontFamily)) {
-		validated.fontFamily = rawStyle.fontFamily as keyof typeof RETRO_FONTS;
-	}
-
-	// Validate font size
-	if (typeof rawStyle.fontSize === 'number') {
-		validated.fontSize = validateFontSize(rawStyle.fontSize);
-	}
-
-	// Validate color
-	if (typeof rawStyle.color === 'string' && validateHexColor(rawStyle.color)) {
-		validated.color = rawStyle.color;
-	}
-
-	// Validate gradient
-	const validatedGradient = validateGradient(rawStyle.gradient);
-	if (validatedGradient) {
-		validated.gradient = validatedGradient;
-	}
-
-	// Validate boolean properties
-	validated.bold = Boolean(rawStyle.bold);
-	validated.italic = Boolean(rawStyle.italic);
-	validated.underline = Boolean(rawStyle.underline);
-	validated.strikethrough = Boolean(rawStyle.strikethrough);
-
-	return validated;
+	return result.data as TextStyle;
 }
 
 export function sanitizeStyleData(styleData: unknown): TextStyle | undefined {
@@ -81,8 +79,7 @@ export function sanitizeStyleData(styleData: unknown): TextStyle | undefined {
 	if (typeof styleData === 'string') {
 		try {
 			parsedData = JSON.parse(styleData);
-		} catch (error) {
-			console.warn('Failed to parse styleData JSON:', error);
+		} catch {
 			return undefined;
 		}
 	}

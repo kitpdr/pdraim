@@ -5,6 +5,7 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import rehypeStringify from 'rehype-stringify';
 import type { TextStyle } from '../types/text-formatting';
 import { validateTextStyle } from '../types/text-formatting';
+import { isValidBBCodeColor, isValidBBCodeFontSize, isValidBBCodeFont } from '../validation/bbcode';
 
 // Define allowed HTML tags and attributes for security
 const ALLOWED_SCHEMA = {
@@ -25,60 +26,6 @@ const ALLOWED_SCHEMA = {
 	}
 };
 
-// Validation functions for BBCode values
-const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
-const NAMED_COLORS = new Set([
-	'red',
-	'blue',
-	'green',
-	'yellow',
-	'orange',
-	'purple',
-	'pink',
-	'black',
-	'white',
-	'gray',
-	'grey',
-	'brown',
-	'cyan',
-	'magenta',
-	'lime',
-	'navy',
-	'teal',
-	'maroon'
-]);
-const ALLOWED_FONTS = new Set([
-	'arial',
-	'helvetica',
-	'verdana',
-	'georgia',
-	'times',
-	'courier',
-	'comic sans ms',
-	'impact',
-	'trebuchet ms',
-	'lucida console',
-	'monospace',
-	'sans-serif',
-	'serif'
-]);
-const MIN_FONT_SIZE = 8;
-const MAX_FONT_SIZE = 24;
-
-function isValidColor(color: string): boolean {
-	const lower = color.toLowerCase();
-	return HEX_COLOR_REGEX.test(color) || NAMED_COLORS.has(lower);
-}
-
-function isValidFontSize(size: string): boolean {
-	const num = parseInt(size, 10);
-	return !isNaN(num) && num >= MIN_FONT_SIZE && num <= MAX_FONT_SIZE;
-}
-
-function isValidFont(font: string): boolean {
-	return ALLOWED_FONTS.has(font.toLowerCase().trim());
-}
-
 // BBCode-style formatting patterns (simple ones with static replacement)
 const BB_CODE_SIMPLE_PATTERNS: Array<{
 	pattern: RegExp;
@@ -97,29 +44,29 @@ const BB_CODE_SIMPLE_PATTERNS: Array<{
 	{ pattern: /\[s\](.*?)\[\/s\]/gi, replacement: '<s>$1</s>' }
 ];
 
-// BBCode patterns that require validation
+// BBCode patterns that require validation (using Zod schemas)
 function processBBCodeWithValidation(text: string): string {
 	let result = text;
 
-	// Color - validate hex or named colors
+	// Color - validate hex or named colors using Zod schema
 	result = result.replace(/\[color=([#\w]+)\](.*?)\[\/color\]/gi, (match, color, content) => {
-		if (isValidColor(color)) {
+		if (isValidBBCodeColor(color)) {
 			return `<span style="color: ${color}">${content}</span>`;
 		}
 		return content; // Strip invalid color, keep content
 	});
 
-	// Size - validate range 8-24px
+	// Size - validate range 8-24px using Zod schema
 	result = result.replace(/\[size=(\d+)\](.*?)\[\/size\]/gi, (match, size, content) => {
-		if (isValidFontSize(size)) {
+		if (isValidBBCodeFontSize(size)) {
 			return `<span style="font-size: ${size}px">${content}</span>`;
 		}
 		return content; // Strip invalid size, keep content
 	});
 
-	// Font - validate against allowed fonts
+	// Font - validate against allowed fonts using Zod schema
 	result = result.replace(/\[font=([^[\]]+)\](.*?)\[\/font\]/gi, (match, font, content) => {
-		if (isValidFont(font)) {
+		if (isValidBBCodeFont(font)) {
 			return `<span style="font-family: ${font}">${content}</span>`;
 		}
 		return content; // Strip invalid font, keep content
