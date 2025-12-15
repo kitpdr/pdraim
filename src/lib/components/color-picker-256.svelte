@@ -7,7 +7,7 @@
 		selectedGradient = $bindable(undefined),
 		onColorChange,
 		onGradientChange,
-		compact = true
+		compact: _compact = true
 	} = $props<{
 		selectedColor?: string;
 		selectedGradient?: string[];
@@ -15,6 +15,7 @@
 		onGradientChange?: (gradient: string[]) => void;
 		compact?: boolean;
 	}>();
+	void _compact; // Reserved for future use
 
 	// State
 	let showPicker = $state(false);
@@ -142,7 +143,7 @@
 			<!-- Gradient controls -->
 			<div class="gradient-controls">
 				<div class="gradient-slots">
-					{#each gradientColors as color, index}
+					{#each gradientColors as color, index (index)}
 						<button
 							class="gradient-slot"
 							class:active={activeGradientSlot === index}
@@ -186,7 +187,7 @@
 			<div class="color-section">
 				<div class="section-title">Classic Colors</div>
 				<div class="color-row">
-					{#each classicColors as color}
+					{#each classicColors as color (color)}
 						<button
 							class="color-swatch classic-swatch"
 							style="--swatch-color: {color}; background-color: {color} !important;"
@@ -201,7 +202,7 @@
 			<div class="color-section">
 				<div class="section-title">Full Palette</div>
 				<div class="color-grid">
-					{#each colors256 as color}
+					{#each colors256 as color (color)}
 						<button
 							class="color-swatch"
 							style="--swatch-color: {color}; background-color: {color} !important;"

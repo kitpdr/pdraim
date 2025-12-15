@@ -5,6 +5,7 @@ import type {
 	SendMessageResponse,
 	GetMessagesResponse
 } from '../types/payloads';
+import type { TextStyle } from '../types/text-formatting';
 import { invalidate } from '$app/navigation';
 import { env } from '$env/dynamic/public';
 
@@ -157,6 +158,7 @@ class ChatState {
 
 			console.debug('Fetched room buddy list:', data.buddyList);
 			// Merge fetched buddy list with existing cached users to preserve user details even if offline
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- temporary Map for merging, not reactive state
 			const mergedUsers = new Map<string, (typeof data.buddyList)[0]>();
 			// Add existing cached users
 			Object.values(this.userCache).forEach((user) => mergedUsers.set(user.id, user));
@@ -429,6 +431,7 @@ class ChatState {
 	async initializeMessages() {
 		try {
 			// Build the URL with appropriate parameters
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- URLSearchParams for URL building, not reactive state
 			const params = new URLSearchParams();
 			if (!this.currentUser) {
 				params.append('public', 'true');
@@ -498,7 +501,7 @@ class ChatState {
 	async sendMessage(
 		content: string,
 		type: Message['type'] = 'chat',
-		textStyle?: any
+		textStyle?: TextStyle
 	): Promise<SendMessageResponse> {
 		const user = this.getCurrentUser();
 		if (!user) {
@@ -514,13 +517,9 @@ class ChatState {
 				content,
 				type,
 				userId: user.id,
-				chatRoomId: DEFAULT_CHAT_ROOM_ID
+				chatRoomId: DEFAULT_CHAT_ROOM_ID,
+				styleData: textStyle ? JSON.stringify(textStyle) : undefined
 			};
-
-			// Add styleData if textStyle is provided
-			if (textStyle) {
-				(payload as any).styleData = JSON.stringify(textStyle);
-			}
 
 			console.debug('Sending message with payload:', payload);
 

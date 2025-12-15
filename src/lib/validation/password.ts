@@ -58,7 +58,7 @@ export function createPasswordSchema(
 
 	if (constraints.requireSpecialChars) {
 		schema = schema.regex(
-			/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/,
+			/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/,
 			PASSWORD_ERROR_MESSAGES.requireSpecialChars
 		);
 	}
@@ -169,7 +169,7 @@ export function validatePasswordStrength(
 	}
 
 	if (constraints.requireSpecialChars) {
-		const hasSpecialChars = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+		const hasSpecialChars = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password);
 		if (!hasSpecialChars) errors.push(PASSWORD_ERROR_MESSAGES.requireSpecialChars);
 		requirements.push({
 			met: hasSpecialChars,

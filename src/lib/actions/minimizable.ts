@@ -5,6 +5,13 @@ interface MinimizableParameters {
 	onMinimize?: (isMinimized: boolean) => void;
 }
 
+export interface MinimizableNode extends HTMLDivElement {
+	minimize: () => void;
+	restore: () => void;
+	toggleMinimize: () => void;
+	isMinimized: () => boolean;
+}
+
 interface MinimizableAttributes {
 	onminimize?: (e: CustomEvent<{ isMinimized: boolean }>) => void;
 }

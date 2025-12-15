@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import { PUBLIC_TURNSTILE_SITE_KEY } from '$env/static/public';
-	import type { Turnstile, TurnstileOptions } from '$lib/types/turnstile';
+	import type { TurnstileOptions } from '$lib/types/turnstile';
 
 	let isVerified = $state(false);
 

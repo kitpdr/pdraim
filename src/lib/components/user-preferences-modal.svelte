@@ -18,12 +18,9 @@
 	let preferences = $state<UserTextPreferences>({ ...DEFAULT_USER_PREFERENCES });
 	let currentStyle = $state<TextStyle>({ ...DEFAULT_TEXT_STYLE });
 	let isSaving = $state(false);
-	let hasChanges = $state(false);
-
-	// Track changes
-	$effect(() => {
-		hasChanges = JSON.stringify(preferences) !== JSON.stringify(DEFAULT_USER_PREFERENCES);
-	});
+	let hasChanges = $derived(
+		JSON.stringify(preferences) !== JSON.stringify(DEFAULT_USER_PREFERENCES)
+	);
 
 	// Update preferences when style changes
 	$effect(() => {

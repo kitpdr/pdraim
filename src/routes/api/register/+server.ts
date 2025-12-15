@@ -8,7 +8,6 @@ import { createLogger } from '$lib/utils/logger.server';
 import { eq } from 'drizzle-orm/sql';
 
 const log = createLogger('register-server');
-const isDev = process.env.NODE_ENV === 'development';
 
 // In-memory map to track failed captcha attempts per IP
 const captchaAttempts = new Map<string, { count: number; lastAttempt: number }>();
@@ -74,8 +73,9 @@ export const POST: RequestHandler = async ({ request }) => {
 			captchaAnswer,
 			turnstileToken
 		});
-	} catch (err: any) {
-		const errorMessage = err.errors?.[0]?.message || 'Invalid input data';
+	} catch (err: unknown) {
+		const zodError = err as { errors?: Array<{ message?: string }> };
+		const errorMessage = zodError.errors?.[0]?.message || 'Invalid input data';
 		log.warn('Registration validation failed', { error: errorMessage });
 		return new Response(JSON.stringify({ error: errorMessage } as RegisterResponseError), {
 			status: 400

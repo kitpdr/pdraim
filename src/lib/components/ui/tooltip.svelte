@@ -1,4 +1,5 @@
 <script lang="ts">
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- $$Props is used for Svelte type inference
 	type $$Props = {
 		data: {
 			text: string;

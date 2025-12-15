@@ -30,5 +30,15 @@ export default ts.config(
 				parser: ts.parser
 			}
 		}
+	},
+	{
+		// Svelte 5 .svelte.ts files use runes - need svelte-eslint-parser
+		files: ['**/*.svelte.ts', '**/*.svelte.js'],
+		languageOptions: {
+			parser: svelte.parser,
+			parserOptions: {
+				parser: ts.parser
+			}
+		}
 	}
 );

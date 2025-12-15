@@ -1,7 +1,6 @@
 <script lang="ts">
 	import {
 		RETRO_FONTS,
-		CLASSIC_COLORS,
 		DEFAULT_TEXT_STYLE,
 		type TextStyle,
 		type FontFamily,
@@ -106,7 +105,7 @@
 			bind:value={style.fontFamily}
 			onchange={(e) => selectFont((e.target as HTMLSelectElement).value as FontFamily)}
 		>
-			{#each Object.entries(RETRO_FONTS) as [key, font]}
+			{#each Object.entries(RETRO_FONTS) as [key, font] (key)}
 				<option value={key} style="font-family: {font.stack}">
 					{font.name}
 				</option>
@@ -185,6 +184,7 @@
 				{#if isProcessing}
 					<span class="loading">Processing...</span>
 				{:else}
+					<!-- eslint-disable-next-line svelte/no-at-html-tags -- formattedPreview is sanitized by formatText/createGradientText -->
 					{@html formattedPreview}
 				{/if}
 			</div>
