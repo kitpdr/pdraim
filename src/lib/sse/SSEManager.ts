@@ -136,7 +136,11 @@ class SSEManager {
 	 * Remove a connection
 	 * @returns Whether this was the last connection for the user
 	 */
-	removeConnection(connectionId: string): { removed: boolean; isLastConnection: boolean; userId: string | null } {
+	removeConnection(connectionId: string): {
+		removed: boolean;
+		isLastConnection: boolean;
+		userId: string | null;
+	} {
 		const connection = this.connections.get(connectionId);
 		if (!connection) {
 			return { removed: false, isLastConnection: false, userId: null };
@@ -360,7 +364,11 @@ class SSEManager {
 	/**
 	 * Get connection statistics
 	 */
-	getStats(): { totalConnections: number; uniqueUsers: number; queueStats: { rooms: number; totalMessages: number } } {
+	getStats(): {
+		totalConnections: number;
+		uniqueUsers: number;
+		queueStats: { rooms: number; totalMessages: number };
+	} {
 		return {
 			totalConnections: this.connections.size,
 			uniqueUsers: this.userConnections.size,
