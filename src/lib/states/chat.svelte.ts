@@ -13,7 +13,6 @@ import type {
 	GetMessagesResponse
 } from '../types/payloads';
 import type { TextStyle } from '../types/text-formatting';
-import { invalidate } from '$app/navigation';
 import { env } from '$env/dynamic/public';
 import { SSEClient, type SSEClientConfig } from '../sse/SSEClient.svelte';
 import type { SSEEventMap } from '../sse/SSEEventEmitter';
@@ -568,7 +567,6 @@ class ChatState {
 				this.messages.sort((a, b) => a.timestamp - b.timestamp);
 			}
 
-			await invalidate('chat:messages');
 			return data;
 		} catch (error) {
 			console.debug('Error sending message:', error);
