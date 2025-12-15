@@ -39,3 +39,21 @@ jobs:
       - run: pnpm run check
       - run: pnpm run lint
       - run: pnpm run build
+
+  migrate:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Run database migrations
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL_PROD }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN_PROD }}
+        run: pnpm db:migrate

@@ -24,7 +24,11 @@ async function setAllUsersOffline() {
 export const init: ServerInit = async () => {
 	log.info('Initializing server...');
 	try {
-		await runMigrations(db);
+		// Only run migrations in Node.js environment (dev mode)
+		// In production (Cloudflare Workers), migrations run via CI before deploy
+		if (typeof process !== 'undefined' && process.versions?.node) {
+			await runMigrations(db);
+		}
 		await ensureDefaultChatRoom(db);
 		await setAllUsersOffline();
 		log.info('Server initialized successfully');
