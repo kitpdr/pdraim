@@ -1,5 +1,5 @@
 import { formatText, validateMessageContent, createGradientText } from './text-formatter';
-import { validateTextStyle, DEFAULT_TEXT_STYLE } from '../types/text-formatting';
+import { validateTextStyle, DEFAULT_TEXT_STYLE, type TextStyle } from '../types/text-formatting';
 
 // XSS Test Vectors
 const XSS_TEST_VECTORS = [

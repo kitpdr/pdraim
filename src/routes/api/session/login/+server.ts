@@ -74,7 +74,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
         loginSchema.parse({ username, password });
     } catch (err) {
         const zodError = err as z.ZodError;
-        const errorMessage = zodError.errors?.[0]?.message || 'Invalid input data';
+        const errorMessage = zodError.issues?.[0]?.message || 'Invalid input data';
         log.warn('Login validation failed', { error: errorMessage });
         return new Response(
             JSON.stringify({ error: errorMessage } as LoginResponseError),
