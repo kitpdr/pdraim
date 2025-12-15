@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { chatState } from '../states/chat.svelte';
-	import type { User, Message, EnrichedMessage, SafeUser } from '../types/chat';
+	import type { Message, EnrichedMessage, SafeUser } from '../types/chat';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { draggable } from '$lib/actions/draggable';
@@ -19,13 +19,15 @@
 		generateInputCSSStyle
 	} from '../types/text-formatting';
 	import { formatFrenchDateTime, formatFrenchRelativeTimeSafe } from '$lib/utils/date-format';
+	import { loadWindowState, saveWindowState, debounce } from '$lib/utils/chat-window-state';
+	import { MAX_MESSAGE_LENGTH } from '$lib/validation/message';
 
 	// Props destructuring must come first
 	let { showChatRoom = $bindable(), initialTextStyle = DEFAULT_TEXT_STYLE } = $props();
 
-	// Initialize with default values for SSR
-	let windowWidth = $state(400);
-	let windowHeight = $state(500);
+	// Initialize with default values for SSR (800x600 - 16:10 aspect ratio)
+	let windowWidth = $state(800);
+	let windowHeight = $state(600);
 	let windowX = $state(0);
 	let windowY = $state(0);
 	let isMobile = $state(false);
@@ -35,6 +37,25 @@
 	let isInitialLoading = $state(true);
 	let showAuth = $state(false);
 	let isMinimized = $state(false);
+	let isCentered = $state(true); // true = window stays centered on resize, false = user has manually positioned
+	let inputScrollLeft = $state(0); // Track input scroll position for gradient overlay sync
+
+	// Handle input changes - truncate and sync scroll
+	function handleInputChange(e: Event) {
+		const input = e.target as HTMLInputElement;
+		// Truncate if over limit (handles paste)
+		if (input.value.length > MAX_MESSAGE_LENGTH) {
+			input.value = input.value.slice(0, MAX_MESSAGE_LENGTH);
+			currentMessage = input.value;
+		}
+		// Sync scroll position for gradient overlay
+		inputScrollLeft = input.scrollLeft;
+	}
+
+	function handleInputScroll(e: Event) {
+		const input = e.target as HTMLInputElement;
+		inputScrollLeft = input.scrollLeft;
+	}
 
 	// Text formatting state - initialize directly with merged initial style
 	let currentTextStyle = $state<TextStyle>({
@@ -51,6 +72,9 @@
 
 	// At the top along with other variable declarations, add:
 	let roomPollInterval: ReturnType<typeof setInterval> | null = null;
+
+	// Debounced save function for window state persistence
+	const debouncedSaveWindowState = debounce(saveWindowState, 300);
 
 	function updateCooldownProgress() {
 		if (!cooldownEndTime) return;
@@ -104,6 +128,17 @@
 
 	// Add a derived state to check if we're showing the registration prompt
 	let showRegistrationPrompt = $derived(!currentUser && messages.length > 50);
+
+	// Character counter - show when approaching limit (80%+)
+	const CHAR_WARNING_THRESHOLD = Math.floor(MAX_MESSAGE_LENGTH * 0.8); // 400 chars
+	let showCharCounter = $derived(currentMessage.length >= CHAR_WARNING_THRESHOLD);
+	let charCounterClass = $derived(
+		currentMessage.length >= MAX_MESSAGE_LENGTH
+			? 'at-limit'
+			: currentMessage.length >= MAX_MESSAGE_LENGTH * 0.95
+				? 'near-limit'
+				: 'warning'
+	);
 
 	// Add SSE error state
 	let sseError = $state<string | null>(null);
@@ -194,23 +229,87 @@
 	onMount(() => {
 		if (!browser) return;
 
+		// Detect mobile first
+		isMobile = window.innerWidth <= 768;
+
+		// Load saved state from localStorage (only for desktop)
+		if (!isMobile) {
+			const savedState = loadWindowState();
+			// Only apply saved position/size if they're within current viewport bounds
+			const maxWidth = window.innerWidth - 40;
+			const maxHeight = window.innerHeight - 40;
+
+			windowWidth = Math.min(savedState.width, maxWidth);
+			windowHeight = Math.min(savedState.height, maxHeight);
+
+			// Handle centering: if x or y is -1, center the window
+			if (savedState.x === -1) {
+				windowX = Math.max(0, (window.innerWidth - windowWidth) / 2);
+			} else {
+				windowX = Math.max(0, Math.min(savedState.x, window.innerWidth - windowWidth));
+			}
+			if (savedState.y === -1) {
+				windowY = Math.max(0, (window.innerHeight - windowHeight) / 2);
+			} else {
+				windowY = Math.max(0, Math.min(savedState.y, window.innerHeight - windowHeight));
+			}
+
+			isMaximized = savedState.isMaximized;
+			isMinimized = savedState.isMinimized;
+			showUserList = savedState.showUserList;
+			isCentered = savedState.isCentered;
+		}
+
 		const handleResize = () => {
+			const wasMobile = isMobile;
 			isMobile = window.innerWidth <= 768;
 			if (isMobile) {
 				windowWidth = window.innerWidth;
 				windowHeight = window.innerHeight;
 				windowX = 0;
 				windowY = 0;
-			} else {
-				windowWidth = Math.min(800, Math.max(400, window.innerWidth * 0.8));
-				windowHeight = Math.min(600, Math.max(500, window.innerHeight * 0.8));
-				windowX = Math.max(0, (window.innerWidth - windowWidth) / 2);
-				windowY = Math.max(0, (window.innerHeight - windowHeight) / 2);
+			} else if (wasMobile && !isMobile) {
+				// Switching from mobile to desktop - reload saved state
+				const savedState = loadWindowState();
+				const maxWidth = window.innerWidth - 40;
+				const maxHeight = window.innerHeight - 40;
+				windowWidth = Math.min(savedState.width, maxWidth);
+				windowHeight = Math.min(savedState.height, maxHeight);
+
+				// Handle centering
+				if (savedState.x === -1) {
+					windowX = Math.max(0, (window.innerWidth - windowWidth) / 2);
+				} else {
+					windowX = Math.max(0, Math.min(savedState.x, window.innerWidth - windowWidth));
+				}
+				if (savedState.y === -1) {
+					windowY = Math.max(0, (window.innerHeight - windowHeight) / 2);
+				} else {
+					windowY = Math.max(0, Math.min(savedState.y, window.innerHeight - windowHeight));
+				}
+			} else if (!isMobile) {
+				// Desktop viewport changed (zoom in/out) - re-center if isCentered, otherwise keep in bounds
+				const maxWidth = window.innerWidth - 40;
+				const maxHeight = window.innerHeight - 40;
+				windowWidth = Math.min(windowWidth, maxWidth);
+				windowHeight = Math.min(windowHeight, maxHeight);
+
+				if (isCentered) {
+					// Keep window centered
+					windowX = Math.max(0, (window.innerWidth - windowWidth) / 2);
+					windowY = Math.max(0, (window.innerHeight - windowHeight) / 2);
+				} else {
+					// Just keep window within bounds
+					windowX = Math.max(0, Math.min(windowX, window.innerWidth - windowWidth));
+					windowY = Math.max(0, Math.min(windowY, window.innerHeight - windowHeight));
+				}
 			}
 		};
 
-		// Initial resize
-		handleResize();
+		// Only run handleResize if on mobile (desktop already loaded from localStorage)
+		if (isMobile) {
+			handleResize();
+		}
 
 		// Add resize listener
 		window.addEventListener('resize', handleResize);
@@ -248,6 +347,23 @@
 		};
 	});
 
+	// Save window state to localStorage when it changes (desktop only)
+	$effect(() => {
+		if (!browser || isMobile) return;
+
+		// Save current state (debounced)
+		debouncedSaveWindowState({
+			width: windowWidth,
+			height: windowHeight,
+			x: windowX,
+			y: windowY,
+			isMaximized,
+			isMinimized,
+			showUserList,
+			isCentered
+		});
+	});
+
 	// New reactive state to track when a message is being sent
 	let isSendingMessage = $state(false);
 
@@ -276,22 +392,11 @@
 		}
 	}
 
-	function getStatusIcon(status: User['status']) {
-		switch (status) {
-			case 'online':
-				return '🟢';
-			case 'away':
-				return '🌙';
-			case 'busy':
-				return '🔴';
-			default:
-				return '⚫';
-		}
-	}
-
 	function handleDragMove(event: CustomEvent<{ x: number; y: number }>) {
 		windowX = event.detail.x;
 		windowY = event.detail.y;
+		// User manually moved the window, no longer keep it centered on resize
+		isCentered = false;
 	}
 
 	interface MaximizableNode extends HTMLElement {
@@ -417,6 +522,10 @@
 
 	// Add derived state for total users count
 	let totalUsers = $derived(onlineUsers.length);
+
+	// Split users into online and offline groups
+	let usersOnline = $derived(onlineUsers.filter((u) => u.status !== 'offline'));
+	let usersOffline = $derived(onlineUsers.filter((u) => u.status === 'offline'));
 
 	function openSignup() {
 		showAuth = true;
@@ -603,16 +712,52 @@
 						{#if currentTextStyle.gradient && currentTextStyle.gradient.length > 1}
 							<div
 								class="gradient-input-wrapper"
-								style="flex: 1; position: relative; background: white;"
+								style="flex: 1; position: relative; background: white; overflow: hidden;"
 							>
+								<!-- Gradient text overlay that syncs with input scroll -->
+								<span
+									class="gradient-text-overlay retro-font-{currentTextStyle.fontFamily}"
+									style="
+										position: absolute;
+										left: 3px;
+										top: 50%;
+										transform: translateY(-50%) translateX(-{inputScrollLeft}px);
+										pointer-events: none;
+										white-space: nowrap;
+										font-size: {currentTextStyle.fontSize}px;
+										{currentTextStyle.bold
+										? currentTextStyle.fontFamily === 'tahoma'
+											? 'font-weight: 200;'
+											: 'font-weight: 700;'
+										: ''}
+										{currentTextStyle.italic ? 'font-style: italic;' : ''}
+										{currentTextStyle.underline || currentTextStyle.strikethrough
+										? `text-decoration: ${[currentTextStyle.underline ? 'underline' : '', currentTextStyle.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ')};`
+										: ''}
+										background: linear-gradient(to right, {currentTextStyle.gradient.join(', ')});
+										-webkit-background-clip: text;
+										-webkit-text-fill-color: transparent;
+										background-clip: text;
+									"
+									aria-hidden="true">{currentMessage}</span
+								>
 								<input
 									type="text"
 									bind:value={currentMessage}
+									maxlength={MAX_MESSAGE_LENGTH}
 									class="styled-input retro-font-{currentTextStyle.fontFamily}"
-									style="width: 100%; background: transparent; {generateInputCSSStyle(
-										currentTextStyle
-									)}"
+									style="width: 100%; background: transparent; color: transparent; caret-color: black; font-size: {currentTextStyle.fontSize}px; {currentTextStyle.bold
+										? currentTextStyle.fontFamily === 'tahoma'
+											? 'font-weight: 200;'
+											: 'font-weight: 700;'
+										: ''} {currentTextStyle.italic
+										? 'font-style: italic;'
+										: ''} {currentTextStyle.underline || currentTextStyle.strikethrough
+										? `text-decoration: ${[currentTextStyle.underline ? 'underline' : '', currentTextStyle.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ')};`
+										: ''}"
 									onkeydown={(e) => e.key === 'Enter' && handleSubmit()}
+									oninput={handleInputChange}
+									onscroll={handleInputScroll}
 									placeholder={cooldownEndTime
 										? `Patientez ${cooldownProgress.toFixed(1)}s...`
 										: 'Écrivez un message...'}
@@ -623,6 +768,7 @@
 							<input
 								type="text"
 								bind:value={currentMessage}
+								maxlength={MAX_MESSAGE_LENGTH}
 								class="styled-input retro-font-{currentTextStyle.fontFamily}"
 								style="flex: 1; {generateInputCSSStyle(currentTextStyle)}"
 								onkeydown={(e) => e.key === 'Enter' && handleSubmit()}
@@ -638,6 +784,11 @@
 							loading={isSendingMessage}
 							text={cooldownEndTime ? `${cooldownProgress.toFixed(1)}s` : 'Envoyer'}
 						/>
+						{#if showCharCounter}
+							<span class="char-counter {charCounterClass}">
+								{currentMessage.length}/{MAX_MESSAGE_LENGTH}
+							</span>
+						{/if}
 					</div>
 					{#if cooldownEndTime}
 						<div
@@ -655,30 +806,33 @@
 					class:hidden={isMobile && !showUserList}
 					style="width: {isMobile ? '100%' : '9.375rem'}; padding: 0.5rem; overflow-y: auto;"
 				>
-					<p style="margin: 0 0 0.3rem 0;">
-						<strong>{totalUsers} membre{totalUsers > 1 ? 's' : ''}</strong>
-					</p>
-					{#each onlineUsers as user (user.id)}
-						<div class="user" class:offline={user.status === 'offline'}>
-							<span class="status-icon">{getStatusIcon(user.status)}</span>
-							<div class="user-info">
-								{#if user.status === 'offline'}
-									<Tooltip
-										data={{
-											text: 'Dernière connexion: ' + formatFrenchRelativeTimeSafe(user.lastSeen),
-											direction: 'bottom',
-											closeDelay: 1000,
-											touchBehavior: 'remove'
-										}}
-									>
-										<div class="nickname select-none">{user.nickname}</div>
-									</Tooltip>
-								{:else}
-									<div class="nickname select-none">{user.nickname}</div>
-								{/if}
+					<!-- Online users section -->
+					{#if usersOnline.length > 0}
+						<p class="section-header">En ligne ({usersOnline.length})</p>
+						{#each usersOnline as user (user.id)}
+							<div class="user">{user.nickname}</div>
+						{/each}
+					{/if}
+
+					<!-- Offline users section -->
+					{#if usersOffline.length > 0}
+						<div class="section-separator"></div>
+						<p class="section-header offline-header">Hors ligne ({usersOffline.length})</p>
+						{#each usersOffline as user (user.id)}
+							<div class="user offline">
+								<Tooltip
+									data={{
+										text: 'Dernière connexion: ' + formatFrenchRelativeTimeSafe(user.lastSeen),
+										direction: 'bottom',
+										closeDelay: 1000,
+										touchBehavior: 'remove'
+									}}
+								>
+									<span class="nickname">{user.nickname}</span>
+								</Tooltip>
 							</div>
-						</div>
-					{/each}
+						{/each}
+					{/if}
 				</div>
 			</div>
 		{/if}
@@ -738,35 +892,41 @@
 	.message {
 		margin-bottom: 0.25rem;
 		word-break: break-word;
-		display: flex;
-		gap: 0.5rem;
-		align-items: flex-start;
+		line-height: 1.4;
 	}
 
-	/* Fix gradient text spacing in messages */
+	/* Fix gradient text alignment in messages */
 	.message :global(.gradient-text-static) {
-		letter-spacing: normal !important;
-		word-spacing: normal !important;
+		display: inline;
+		vertical-align: baseline;
+		line-height: inherit;
 	}
 
-	.message :global(.gradient-text-static span) {
-		letter-spacing: 0 !important;
+	.message :global(.gradient-char) {
+		display: inline;
+		vertical-align: baseline;
+		line-height: inherit;
 	}
 
 	.message .nickname {
+		display: inline;
 		font-weight: bold;
 		color: #2d31a6;
 		cursor: help;
-		flex-shrink: 0;
+		margin-right: 0.25rem;
+		vertical-align: baseline;
 	}
 
 	.message-content {
-		flex: 1;
-		min-width: 0;
+		display: inline;
+		vertical-align: baseline;
 	}
 
-	.message .content {
-		flex: 1;
+	/* Ensure formatted message content aligns properly with nickname */
+	.message-content :global(.formatted-message),
+	.message-content :global(.gradient-text-static) {
+		display: inline;
+		vertical-align: baseline;
 	}
 
 	.message.emote {
@@ -778,36 +938,40 @@
 		color: #666;
 	}
 
+	.section-header {
+		margin: 0 0 0.25rem 0;
+		font-weight: bold;
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--color-muted-foreground);
+	}
+
+	.offline-header {
+		opacity: 0.7;
+	}
+
+	.section-separator {
+		border-top: 1px solid var(--color-border);
+		margin: 0.5rem 0;
+	}
+
 	.user {
-		display: flex;
-		align-items: flex-start;
-		margin-bottom: 0.25rem;
-		gap: 0.375rem;
-		transition: opacity 0.3s ease;
+		margin-bottom: 0.125rem;
+		padding-left: 0.25rem;
+		line-height: 1.4;
+		font-size: 0.9rem;
+		font-weight: normal;
+		color: var(--color-foreground);
 	}
 
 	.user.offline {
-		opacity: 0.6;
-	}
-
-	.status-icon {
-		font-size: 0.875rem;
-		transition: color 0.3s ease;
-	}
-
-	.user-info {
-		flex: 1;
-		min-width: 0;
-	}
-
-	.user .nickname {
-		font-weight: bold;
-		margin-bottom: 0.125rem;
-		transition: color 0.3s ease;
+		color: var(--color-muted-foreground);
+		font-style: italic;
 	}
 
 	.user.offline .nickname {
-		color: #666;
+		cursor: help;
 	}
 
 	/* .user .status-message {
@@ -827,6 +991,11 @@
 	input[type='text'] {
 		font-size: 1rem;
 		margin-right: 0.25rem;
+	}
+
+	/* Styled input - font is controlled by retro-font-* classes */
+	.styled-input {
+		/* Font family is set by retro-font-* classes, don't override here */
 	}
 
 	button {
@@ -959,6 +1128,29 @@
 
 	.input-container {
 		position: relative;
+	}
+
+	/* Character counter styles */
+	.char-counter {
+		font-size: 0.75rem;
+		padding: 0 0.25rem;
+		margin-left: 0.25rem;
+		white-space: nowrap;
+		font-family: 'Pixelated MS Sans Serif', Tahoma, sans-serif;
+	}
+
+	.char-counter.warning {
+		color: var(--color-muted-foreground);
+	}
+
+	.char-counter.near-limit {
+		color: var(--color-warning);
+		font-weight: bold;
+	}
+
+	.char-counter.at-limit {
+		color: var(--color-destructive);
+		font-weight: bold;
 	}
 
 	.connection-error {

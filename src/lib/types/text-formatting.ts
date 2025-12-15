@@ -51,7 +51,7 @@ export function generate256Colors(): string[] {
 	// Green hues
 	colors.push('#003300', '#006600', '#009900', '#00CC00', '#00FF00');
 	colors.push('#33FF33', '#66FF66', '#99FF99', '#CCFFCC');
-	colors.push('#336633', '#669966', '#99CC99', '#CCFFCC');
+	colors.push('#336633', '#669966', '#99CC99');
 
 	// Cyan hues
 	colors.push('#006666', '#009999', '#00CCCC', '#00FFFF');
@@ -219,7 +219,7 @@ export function generateCSSStyle(style: TextStyle): string {
 	// Color or gradient
 	if (style.gradient && style.gradient.length > 1) {
 		const gradientStops = style.gradient.join(', ');
-		styles.push(`background: linear-gradient(45deg, ${gradientStops})`);
+		styles.push(`background: linear-gradient(to right, ${gradientStops})`);
 		styles.push(`-webkit-background-clip: text`);
 		styles.push(`-webkit-text-fill-color: transparent`);
 		styles.push(`background-clip: text`);
@@ -261,6 +261,7 @@ export function generateInputCSSStyle(style: TextStyle): string {
 	styles.push(`font-size: ${style.fontSize}px`);
 
 	// Color handling for inputs
+	// IMPORTANT: Always set -webkit-text-fill-color to ensure proper color reset when switching from gradient to solid
 	if (style.gradient && style.gradient.length > 1) {
 		// Apply gradient background with text clipping for gradient effect
 		const gradientStops = style.gradient.join(', ');
@@ -272,12 +273,16 @@ export function generateInputCSSStyle(style: TextStyle): string {
 		styles.push(`word-spacing: 0`);
 	} else if (style.gradient && style.gradient.length === 1) {
 		// Single color from gradient array
-		styles.push(`color: ${style.gradient[0]}`);
+		const color = style.gradient[0];
+		styles.push(`color: ${color}`);
+		styles.push(`-webkit-text-fill-color: ${color}`);
 	} else if (style.color) {
 		styles.push(`color: ${style.color}`);
+		styles.push(`-webkit-text-fill-color: ${style.color}`);
 	} else {
 		// Fallback to black if no color is set
 		styles.push(`color: #000000`);
+		styles.push(`-webkit-text-fill-color: #000000`);
 	}
 
 	// Font weight
