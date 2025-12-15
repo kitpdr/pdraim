@@ -2,11 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '$lib/db/db.server';
 import { messages } from '$lib/db/schema';
 import type { Message } from '$lib/types/chat';
-import type {
-	SendMessageRequest,
-	SendMessageResponse,
-	GetMessagesResponse
-} from '$lib/types/payloads';
+import type { SendMessageResponse, GetMessagesResponse } from '$lib/types/payloads';
 import { and, desc, eq, lt } from 'drizzle-orm/sql';
 import type { SQL } from 'drizzle-orm/sql';
 import { error } from '@sveltejs/kit';
@@ -16,6 +12,7 @@ import { users } from '$lib/db/schema';
 import { DEFAULT_CHAT_ROOM_ID } from '$lib/utils/chat.server';
 import { createLogger } from '$lib/utils/logger.server';
 import { sanitizeStyleData } from '$lib/validation/text-formatting';
+import { sendMessageSchema } from '$lib/validation/message';
 
 const log = createLogger('chat-server');
 
@@ -146,18 +143,24 @@ export async function POST({ request, locals }: { request: Request; locals: App.
 			});
 		}
 
-		const data = (await request.json()) as SendMessageRequest;
-		if (!data.content || !data.userId) {
-			log.warn('Invalid payload received', {
-				hasContent: Boolean(data.content),
-				hasUserId: Boolean(data.userId)
+		const rawData = await request.json();
+
+		// Validate with Zod schema
+		const parseResult = sendMessageSchema.safeParse(rawData);
+		if (!parseResult.success) {
+			const errorMessage = parseResult.error.issues[0]?.message || 'Invalid message payload';
+			log.warn('Message validation failed', {
+				error: errorMessage,
+				issues: parseResult.error.issues
 			});
 			const errorResponse: SendMessageResponse = {
 				success: false,
-				error: 'Invalid message payload'
+				error: errorMessage
 			};
 			return new Response(JSON.stringify(errorResponse), { status: 400 });
 		}
+
+		const data = parseResult.data;
 
 		if (data.userId !== locals.user.id) {
 			log.warn('Unauthorized message attempt', {

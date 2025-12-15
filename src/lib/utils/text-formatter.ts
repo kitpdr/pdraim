@@ -288,12 +288,12 @@ export function createGradientText(
 		return `<span class="gradient-char" style="${inlineStyle}">${escapeHtml(char)}</span>`;
 	});
 
-	// Wrap all spans in a container that uses flexbox to eliminate spacing
+	// Wrap all spans in a container - use inline display to match text baseline
 	const fontClass = style?.fontFamily ? ` retro-font-${style.fontFamily}` : '';
 	const containerStyle = style
 		? generateCSSStyleWithoutFont({ ...style, gradient: undefined, color: undefined })
 		: '';
-	const result = `<span class="${className}${fontClass}" style="display: inline-flex; flex-wrap: wrap; ${containerStyle}">${gradientSpans.join('')}</span>`;
+	const result = `<span class="${className}${fontClass}" style="display: inline; ${containerStyle}">${gradientSpans.join('')}</span>`;
 	console.debug('Final gradient HTML:', result);
 	return result;
 }
