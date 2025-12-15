@@ -38,7 +38,7 @@
 	// Get current display color/gradient
 	let displayStyle = $derived(() => {
 		if (gradientColors.length > 1) {
-			return `background: linear-gradient(45deg, ${gradientColors.join(', ')})`;
+			return `background: linear-gradient(to right, ${gradientColors.join(', ')})`;
 		}
 		return `background: ${gradientColors[0] || '#000000'}`;
 	});
