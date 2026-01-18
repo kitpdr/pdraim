@@ -144,4 +144,53 @@ export interface ConvexChatRoom {
 	createdAt: number;
 }
 
-export default { users, sessions, messages, chatRooms };
+export interface ConvexTextPreferences {
+	_id: string;
+	_creationTime: number;
+	userId: string;
+	defaultStyle: {
+		fontFamily: string;
+		fontSize: number;
+		color?: string;
+		gradient?: string[];
+		bold: boolean;
+		italic: boolean;
+		underline: boolean;
+		strikethrough: boolean;
+	};
+	allowFormatting: boolean;
+	maxMessageLength: number;
+	createdAt: number;
+	updatedAt: number;
+}
+
+// ============ TEXT PREFERENCES ============
+
+export const textPreferences = {
+	get: (userId: string) =>
+		convexFetch<ConvexTextPreferences | null>('/api/textPreferences/get', { userId }),
+
+	save: (
+		userId: string,
+		defaultStyle: {
+			fontFamily: string;
+			fontSize: number;
+			color?: string;
+			gradient?: string[];
+			bold: boolean;
+			italic: boolean;
+			underline: boolean;
+			strikethrough: boolean;
+		},
+		allowFormatting: boolean,
+		maxMessageLength: number
+	) =>
+		convexFetch<{ success: boolean; id: string }>('/api/textPreferences/save', {
+			userId,
+			defaultStyle,
+			allowFormatting,
+			maxMessageLength
+		})
+};
+
+export default { users, sessions, messages, chatRooms, textPreferences };

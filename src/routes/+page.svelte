@@ -18,7 +18,7 @@
 	<DesktopIcons bind:showChatRoom bind:showAuth />
 
 	{#if showChatRoom}
-		<ChatRoom bind:showChatRoom initialTextStyle={data.lastTextStyle} />
+		<ChatRoom bind:showChatRoom initialTextStyle={data.textStyle} />
 	{/if}
 
 	{#if showAuth}

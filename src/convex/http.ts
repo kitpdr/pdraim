@@ -275,4 +275,48 @@ http.route({
 	})
 });
 
+// ============ TEXT PREFERENCES (server-side only) ============
+
+// Get user text preferences
+http.route({
+	path: '/api/textPreferences/get',
+	method: 'POST',
+	handler: httpAction(async (ctx, request) => {
+		if (!validateSecret(request)) return unauthorizedResponse();
+
+		const { userId } = await request.json();
+		const preferences = await ctx.runQuery(internal.textPreferencesInternal.getByUserId, {
+			userId
+		});
+
+		return new Response(JSON.stringify(preferences), {
+			headers: { 'Content-Type': 'application/json' }
+		});
+	})
+});
+
+// Save user text preferences
+http.route({
+	path: '/api/textPreferences/save',
+	method: 'POST',
+	handler: httpAction(async (ctx, request) => {
+		if (!validateSecret(request)) return unauthorizedResponse();
+
+		const { userId, defaultStyle, allowFormatting, maxMessageLength } = await request.json();
+		try {
+			const result = await ctx.runMutation(internal.textPreferencesInternal.upsert, {
+				userId,
+				defaultStyle,
+				allowFormatting,
+				maxMessageLength
+			});
+			return new Response(JSON.stringify({ success: true, id: result }), {
+				headers: { 'Content-Type': 'application/json' }
+			});
+		} catch (e) {
+			return errorResponse(e instanceof Error ? e.message : 'Failed to save preferences');
+		}
+	})
+});
+
 export default http;
