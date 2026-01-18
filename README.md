@@ -7,6 +7,7 @@ Ce projet _sandbox_, à but non lucratif, recrée l'ambiance des salons de discu
 - SvelteKit (version 5)
 - Node.js
 - TypeScript
+- Convex (base de données temps réel)
 - XP.css
 - Tailwind CSS
 
@@ -48,33 +49,38 @@ Pour contribuer :
 
 ## Base de données
 
-Si vous souhaitez pouvoir tester le chat en local, vous devez configurer une base de données. Le projet utilise Drizzle ORM et Turso https://turso.tech/ comme base de données. Je vous invite à en créer une pour vos tests en local et à regarder le fichier `.env.example`.
+Le projet utilise [Convex](https://convex.dev/) comme base de données temps réel. Convex gère automatiquement les mises à jour en temps réel des messages et de la liste des utilisateurs.
 
-Pour générer les schémas de la base de données, exécutez la commande suivante :
+### Configuration locale
+
+1. Créez un compte sur [Convex](https://convex.dev/) et un nouveau projet
+2. Copiez `.env.example` vers `.env.local` et remplissez les variables :
+   - `PUBLIC_CONVEX_URL` : URL de votre déploiement Convex
+   - `CONVEX_API_SECRET` : Clé secrète pour les appels serveur
+
+### Lancer Convex en développement
+
+Dans un terminal séparé, lancez le serveur Convex :
 
 ```bash
-npm run db:generate
-# ou
-pnpm db:generate
+npx convex dev
 ```
 
-Pour pousser les schémas à la base de données, exécutez la commande suivante :
+Cela synchronise automatiquement vos fonctions backend avec Convex et affiche les logs en temps réel.
+
+### Dashboard Convex
+
+Vous pouvez visualiser et gérer vos données via le dashboard Convex :
 
 ```bash
-npm run db:push
-# ou
-pnpm db:push
-```
-
-Vous pouvez avoir un aperçu du contenu de la base en utilisant :
-
-```bash
-npx drizzle-kit studio
+npx convex dashboard
 ```
 
 ## Documentation et Ressources
 
-Si vous n'avez jamais utilisé Svelte/Kit, référez-vous aux documentations officielles :
+Si vous n'avez jamais utilisé Svelte/Kit ou Convex, référez-vous aux documentations officielles :
 
 - [Documentation de Svelte](https://svelte.dev/docs/)
 - [Documentation de SvelteKit](https://svelte.dev/docs/kit/@sveltejs-kit)
+- [Documentation de Convex](https://docs.convex.dev/)
+- [Convex + Svelte](https://docs.convex.dev/client/svelte)
