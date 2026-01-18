@@ -61,7 +61,7 @@
 	let currentTextStyle = $state<TextStyle>({
 		...DEFAULT_TEXT_STYLE,
 		...initialTextStyle,
-		color: initialTextStyle.color || '#000000' // Ensure we always have a valid color
+		color: initialTextStyle.color || '#000000'
 	});
 
 	// Rate limiting state
@@ -703,7 +703,6 @@
 								bind:style={currentTextStyle}
 								compact={true}
 								showFontSelector={true}
-								showGradients={true}
 							/>
 						</div>
 					{/if}
@@ -998,6 +997,7 @@
 	/* Styled input - font is controlled by retro-font-* classes */
 	.styled-input {
 		/* Font family is set by retro-font-* classes, don't override here */
+		font-style: inherit;
 	}
 
 	button {
