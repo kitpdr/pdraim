@@ -24,6 +24,21 @@ function hexToBuffer(hex: string): Uint8Array {
 }
 
 /**
+ * Performs a constant-time string comparison to prevent timing attacks.
+ * Returns true if strings are equal, false otherwise.
+ */
+function constantTimeCompare(a: string, b: string): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+	let result = 0;
+	for (let i = 0; i < a.length; i++) {
+		result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+	}
+	return result === 0;
+}
+
+/**
  * Derives a password hash using PBKDF2 with the provided salt.
  * @param password The plain text password.
  * @param salt Uint8Array salt.
@@ -70,5 +85,5 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 	const [saltHex, hashValue] = hash.split(':');
 	const salt = hexToBuffer(saltHex);
 	const derivedHash = await derivePasswordHash(password, salt);
-	return derivedHash === hashValue;
+	return constantTimeCompare(derivedHash, hashValue);
 }

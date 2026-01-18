@@ -49,6 +49,29 @@ Promise.resolve()
 export const handle: Handle = async ({ event, resolve }) => {
 	log.debug('Handling request', { path: event.url.pathname });
 
+	// CSRF protection: validate Origin header for state-changing requests
+	if (event.request.method !== 'GET' && event.request.method !== 'HEAD') {
+		const origin = event.request.headers.get('origin');
+		const host = event.request.headers.get('host');
+
+		// Block cross-origin requests (origin header is present but doesn't match host)
+		if (origin) {
+			try {
+				const originUrl = new URL(origin);
+				if (originUrl.host !== host) {
+					log.warn('CSRF check failed - origin mismatch', {
+						origin: originUrl.host,
+						host
+					});
+					return new Response('Forbidden', { status: 403 });
+				}
+			} catch {
+				log.warn('CSRF check failed - invalid origin', { origin });
+				return new Response('Forbidden', { status: 403 });
+			}
+		}
+	}
+
 	// Get session token from cookies
 	const token = event.cookies.get('session') ?? null;
 

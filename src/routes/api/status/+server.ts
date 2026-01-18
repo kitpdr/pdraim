@@ -39,22 +39,30 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 
 		// Renew session if status is online and session expires in less than 1 day
 		if (status === 'online') {
-			const token = cookies.get('session');
-			if (token) {
-				const result = await validateSessionToken(token);
-				if (result.session) {
-					const remaining = result.session.expiresAt - now;
-					const threshold = 24 * 60 * 60 * 1000; // 1 day in milliseconds
-					if (remaining < threshold) {
-						const newToken = generateSessionToken();
-						const newSession = await createSession(newToken, userId);
-						setSessionTokenCookie({ cookies }, newToken, newSession.expiresAt);
-						log.info('Session renewed', {
-							userId: maskedUserId,
-							expiresAt: new Date(newSession.expiresAt).toISOString()
-						});
+			try {
+				const token = cookies.get('session');
+				if (token) {
+					const result = await validateSessionToken(token);
+					if (result.session) {
+						const remaining = result.session.expiresAt - now;
+						const threshold = 24 * 60 * 60 * 1000; // 1 day in milliseconds
+						if (remaining < threshold) {
+							const newToken = generateSessionToken();
+							const newSession = await createSession(newToken, userId);
+							setSessionTokenCookie({ cookies }, newToken, newSession.expiresAt);
+							log.info('Session renewed', {
+								userId: maskedUserId,
+								expiresAt: new Date(newSession.expiresAt).toISOString()
+							});
+						}
 					}
 				}
+			} catch (renewalError) {
+				log.error('Session renewal failed', {
+					error: renewalError instanceof Error ? renewalError.message : 'Unknown error',
+					userId: maskedUserId
+				});
+				// Continue with status update even if renewal fails
 			}
 		}
 
@@ -76,12 +84,13 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 		);
 	} catch (error) {
 		log.error('Error updating status', {
-			error: error instanceof Error ? error.message : 'Unknown error'
+			error: error instanceof Error ? error.message : 'Unknown error',
+			userId: locals.user?.id
 		});
 		return new Response(
 			JSON.stringify({
 				success: false,
-				error: error instanceof Error ? error.message : 'Unknown error'
+				error: 'Failed to update status'
 			}),
 			{
 				status: 500,
