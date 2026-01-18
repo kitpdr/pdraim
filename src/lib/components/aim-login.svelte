@@ -15,9 +15,21 @@
 	} from '../validation/password';
 	import { z } from 'zod';
 
-	let { showAuth = $bindable(), onLoginSuccess, activeTab: initialTab = 'signin' } = $props();
+	let {
+		showAuth = $bindable(),
+		onLoginSuccess,
+		activeTab: initialTab = 'signin'
+	} = $props<{
+		showAuth?: boolean;
+		onLoginSuccess?: () => void;
+		activeTab?: 'signin' | 'signup';
+	}>();
 
-	let activeTab = $state(initialTab);
+	let activeTab = $state<'signin' | 'signup'>('signin');
+
+	$effect(() => {
+		activeTab = initialTab;
+	});
 
 	// Sign In state
 	let siUsername = $state('');
@@ -229,7 +241,7 @@
 		}
 	}
 
-	function switchTab(tab: string) {
+	function switchTab(tab: 'signin' | 'signup') {
 		activeTab = tab;
 		error = '';
 		signupError = '';

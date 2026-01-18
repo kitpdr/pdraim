@@ -15,10 +15,19 @@
 	let isProcessing = $state(false);
 	let hasError = $state(false);
 
+	// Apply mention highlighting to text
+	function applyMentionHighlighting(text: string): string {
+		return text.replace(
+			/(^|\s)@([a-zA-Z0-9_-]{1,32})(?=$|\s|[^a-zA-Z0-9_-])/g,
+			'$1<span class="mention-token">@$2</span>'
+		);
+	}
+
 	// Process message formatting
 	async function processMessage() {
 		if (!allowFormatting || !message.hasFormatting) {
-			formattedContent = escapeHtml(message.content);
+			// Still apply mention highlighting to plain text messages
+			formattedContent = applyMentionHighlighting(escapeHtml(message.content));
 			return;
 		}
 
@@ -232,6 +241,12 @@
 	/* Don't inherit color for gradient text spans */
 	:global(.formatted-message:not(.gradient-text-static)) {
 		color: inherit;
+	}
+
+	/* Mention token styling */
+	:global(.mention-token) {
+		color: #1e2a72;
+		font-weight: bold;
 	}
 
 	/* Ensure accessibility for screen readers */
