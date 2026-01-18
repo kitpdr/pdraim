@@ -71,6 +71,18 @@ function getEndpointType(pathname: string, isPublic: boolean): keyof typeof RATE
 	return 'protected';
 }
 
+function getRateLimitPoints(
+	endpointType: keyof typeof RATE_LIMITS,
+	isAuthenticated: boolean
+): number {
+	if (endpointType === 'sse') {
+		return isAuthenticated
+			? RATE_LIMITS.sse.authenticated.points
+			: RATE_LIMITS.sse.unauthenticated.points;
+	}
+	return RATE_LIMITS[endpointType].points;
+}
+
 function isRateLimited(
 	ip: string,
 	endpointType: keyof typeof RATE_LIMITS,
@@ -176,9 +188,7 @@ export async function handleRateLimit(event: RequestEvent): Promise<Response | n
 				hasUser: Boolean(event.locals.user),
 				hasSession: Boolean(event.locals.session),
 				endpointType,
-				rateLimitPoints: isAuthenticated
-					? RATE_LIMITS.sse.authenticated.points
-					: RATE_LIMITS.sse.unauthenticated.points
+				rateLimitPoints: getRateLimitPoints(endpointType, isAuthenticated)
 			};
 		}
 
@@ -193,9 +203,10 @@ export async function handleRateLimit(event: RequestEvent): Promise<Response | n
 			headers['X-Debug-Has-User'] = Boolean(event.locals.user).toString();
 			headers['X-Debug-Has-Session'] = Boolean(event.locals.session).toString();
 			headers['X-Debug-Endpoint-Type'] = endpointType;
-			headers['X-Debug-Rate-Limit-Points'] = isAuthenticated
-				? RATE_LIMITS.sse.authenticated.points.toString()
-				: RATE_LIMITS.sse.unauthenticated.points.toString();
+			headers['X-Debug-Rate-Limit-Points'] = getRateLimitPoints(
+				endpointType,
+				isAuthenticated
+			).toString();
 		}
 
 		return new Response(JSON.stringify(responseBody), {
