@@ -1,6 +1,12 @@
 import type { PageServerLoad } from './$types';
 import { validateSessionToken } from '$lib/api/session.server';
-import { DEFAULT_TEXT_STYLE, type TextStyle } from '$lib/types/text-formatting';
+import {
+	DEFAULT_TEXT_STYLE,
+	DEFAULT_USER_PREFERENCES,
+	type TextStyle,
+	type UserTextPreferences
+} from '$lib/types/text-formatting';
+import convex from '$lib/db/convex.server';
 
 export const load: PageServerLoad = async ({ cookies }) => {
 	const token = cookies.get('session');
@@ -8,7 +14,8 @@ export const load: PageServerLoad = async ({ cookies }) => {
 	if (!token) {
 		return {
 			user: null,
-			lastTextStyle: DEFAULT_TEXT_STYLE
+			textStyle: DEFAULT_TEXT_STYLE,
+			userPreferences: DEFAULT_USER_PREFERENCES
 		};
 	}
 
@@ -18,23 +25,31 @@ export const load: PageServerLoad = async ({ cookies }) => {
 		if (!user) {
 			return {
 				user: null,
-				lastTextStyle: DEFAULT_TEXT_STYLE
+				textStyle: DEFAULT_TEXT_STYLE,
+				userPreferences: DEFAULT_USER_PREFERENCES
 			};
 		}
 
-		// For now, return default text style
-		// TODO: Fetch user's last text style from Convex if needed
-		const lastTextStyle: TextStyle = DEFAULT_TEXT_STYLE;
+		// Fetch user's text preferences from Convex
+		const prefs = await convex.textPreferences.get(user.id);
 
 		return {
 			user,
-			lastTextStyle
+			textStyle: (prefs?.defaultStyle as TextStyle) ?? DEFAULT_TEXT_STYLE,
+			userPreferences: prefs
+				? {
+						defaultStyle: prefs.defaultStyle as TextStyle,
+						allowFormatting: prefs.allowFormatting,
+						maxMessageLength: prefs.maxMessageLength
+					}
+				: DEFAULT_USER_PREFERENCES
 		};
 	} catch (error) {
 		console.error('Error loading page data:', error);
 		return {
 			user: null,
-			lastTextStyle: DEFAULT_TEXT_STYLE
+			textStyle: DEFAULT_TEXT_STYLE,
+			userPreferences: DEFAULT_USER_PREFERENCES
 		};
 	}
 };

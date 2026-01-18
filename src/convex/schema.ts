@@ -40,12 +40,18 @@ export default defineSchema({
 
 	userTextPreferences: defineTable({
 		userId: v.id('users'),
-		defaultFontFamily: v.optional(v.string()),
-		defaultFontSize: v.optional(v.number()),
-		defaultColor: v.optional(v.string()),
-		allowFormatting: v.optional(v.boolean()),
-		maxMessageLength: v.optional(v.number()),
-		stylePresets: v.optional(v.string()),
+		defaultStyle: v.object({
+			fontFamily: v.string(),
+			fontSize: v.number(),
+			color: v.optional(v.string()),
+			gradient: v.optional(v.array(v.string())),
+			bold: v.boolean(),
+			italic: v.boolean(),
+			underline: v.boolean(),
+			strikethrough: v.boolean()
+		}),
+		allowFormatting: v.boolean(),
+		maxMessageLength: v.number(),
 		createdAt: v.number(),
 		updatedAt: v.number()
 	}).index('by_userId', ['userId'])

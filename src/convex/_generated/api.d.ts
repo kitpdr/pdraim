@@ -15,6 +15,7 @@ import type * as messagesInternal from "../messagesInternal.js";
 import type * as mutations from "../mutations.js";
 import type * as queries from "../queries.js";
 import type * as sessionsInternal from "../sessionsInternal.js";
+import type * as textPreferencesInternal from "../textPreferencesInternal.js";
 import type * as usersInternal from "../usersInternal.js";
 
 import type {
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   mutations: typeof mutations;
   queries: typeof queries;
   sessionsInternal: typeof sessionsInternal;
+  textPreferencesInternal: typeof textPreferencesInternal;
   usersInternal: typeof usersInternal;
 }>;
 
