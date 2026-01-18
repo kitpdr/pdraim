@@ -1,4 +1,4 @@
-import { CONVEX_API_SECRET } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { PUBLIC_CONVEX_URL } from '$env/static/public';
 
 // Convert .cloud URL to .site URL for HTTP actions
@@ -14,7 +14,7 @@ async function convexFetch<T>(path: string, body: Record<string, unknown> = {}):
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			'X-Convex-Secret': CONVEX_API_SECRET
+			'X-Convex-Secret': env.CONVEX_API_SECRET || ''
 		},
 		body: JSON.stringify(body)
 	});
