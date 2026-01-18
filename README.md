@@ -101,12 +101,12 @@ export const GET: RequestHandler = async () => {
 
 ### Bonnes pratiques
 
-| A eviter | Alternative |
-|------------|----------------|
-| `setInterval` pour cleanup | Lazy cleanup à chaque requête |
-| `fetch()` au chargement du module | `fetch()` dans les handlers |
-| Création de clients API au niveau module | Création lazy ou dans les handlers |
-| `process.exit()` | Retourner une Response avec status d'erreur |
+| A eviter                                              | Alternative                                            |
+| ----------------------------------------------------- | ------------------------------------------------------ |
+| `setInterval` pour cleanup                            | Lazy cleanup à chaque requête                          |
+| `fetch()` au chargement du module                     | `fetch()` dans les handlers                            |
+| Création de clients API au niveau module              | Création lazy ou dans les handlers                     |
+| `process.exit()`                                      | Retourner une Response avec status d'erreur            |
 | Bibliothèques avec worker threads (ex: `pino-pretty`) | Versions compatibles edge (ex: `pino` sans transports) |
 
 ### Variables d'environnement
