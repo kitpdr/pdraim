@@ -20,9 +20,9 @@ export const GET: RequestHandler = async ({ cookies }) => {
 			userId: `${result.user.id.slice(0, 4)}...${result.user.id.slice(-4)}`,
 			sessionId: `${result.session.id.slice(0, 4)}...${result.session.id.slice(-4)}`
 		});
-	} else {
-		log.debug('Invalid session token');
+		return json(result, { status: 200 });
 	}
 
-	return json(result);
+	log.debug('Invalid session token');
+	return json({ session: null, user: null }, { status: 401 });
 };

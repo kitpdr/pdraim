@@ -1,5 +1,5 @@
 import { sessions } from '../db/convex.server';
-import type { Session, User } from '../types/chat';
+import type { Session, SafeUser } from '../types/chat';
 import { createLogger } from '../utils/logger.server';
 
 const log = createLogger('session-server');
@@ -41,7 +41,7 @@ export function generateSessionToken(): string {
 	const randomBytesArray = new Uint8Array(20);
 	crypto.getRandomValues(randomBytesArray);
 	const token = base32Encode(randomBytesArray);
-	log.debug('Generated session token', { token });
+	log.debug('Generated session token', { tokenPrefix: token.slice(0, 4) + '***' });
 	return token;
 }
 
@@ -64,7 +64,7 @@ export async function createSession(token: string, userId: string): Promise<Sess
  * Returns an object with both session and user if valid, or nulls if not.
  */
 export type SessionValidationResult =
-	| { session: Session; user: User }
+	| { session: Session; user: SafeUser }
 	| { session: null; user: null };
 
 // Validate a session token by converting it to its SHA-256 hash, checking expiration, and fetching the user.
@@ -87,13 +87,11 @@ export async function validateSessionToken(token: string): Promise<SessionValida
 		expiresAt: result.session.expiresAt
 	};
 
-	const user: User = {
+	const user: SafeUser = {
 		id: result.user._id,
-		password: result.user.password,
 		nickname: result.user.nickname,
-		status: result.user.status as User['status'],
+		status: result.user.status as SafeUser['status'],
 		avatarUrl: result.user.avatarUrl,
-		createdAt: result.user.createdAt,
 		lastSeen: result.user.lastSeen
 	};
 

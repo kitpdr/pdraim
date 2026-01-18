@@ -1,6 +1,7 @@
 import { httpRouter } from 'convex/server';
 import { httpAction } from './_generated/server';
 import { internal } from './_generated/api';
+import type { Id } from './_generated/dataModel';
 
 const http = httpRouter();
 
@@ -32,6 +33,15 @@ function errorResponse(message: string, status = 400) {
 	});
 }
 
+// Helper function to safely parse JSON body
+async function parseJsonBody<T>(request: Request): Promise<T | null> {
+	try {
+		return (await request.json()) as T;
+	} catch {
+		return null;
+	}
+}
+
 // ============ USERS (server-side only) ============
 
 // Get user by nickname - for login
@@ -41,8 +51,12 @@ http.route({
 	handler: httpAction(async (ctx, request) => {
 		if (!validateSecret(request)) return unauthorizedResponse();
 
-		const { nickname } = await request.json();
-		const user = await ctx.runQuery(internal.usersInternal.getByNickname, { nickname });
+		const body = await parseJsonBody<{ nickname: string }>(request);
+		if (!body) return errorResponse('Invalid JSON', 400);
+
+		const user = await ctx.runQuery(internal.usersInternal.getByNickname, {
+			nickname: body.nickname
+		});
 
 		return new Response(JSON.stringify(user), {
 			headers: { 'Content-Type': 'application/json' }
@@ -57,9 +71,14 @@ http.route({
 	handler: httpAction(async (ctx, request) => {
 		if (!validateSecret(request)) return unauthorizedResponse();
 
-		const { nickname, password } = await request.json();
+		const body = await parseJsonBody<{ nickname: string; password: string }>(request);
+		if (!body) return errorResponse('Invalid JSON', 400);
+
 		try {
-			const userId = await ctx.runMutation(internal.usersInternal.create, { nickname, password });
+			const userId = await ctx.runMutation(internal.usersInternal.create, {
+				nickname: body.nickname,
+				password: body.password
+			});
 			return new Response(JSON.stringify({ userId }), {
 				headers: { 'Content-Type': 'application/json' }
 			});
@@ -76,8 +95,10 @@ http.route({
 	handler: httpAction(async (ctx, request) => {
 		if (!validateSecret(request)) return unauthorizedResponse();
 
-		const { id } = await request.json();
-		const user = await ctx.runQuery(internal.usersInternal.getById, { id });
+		const body = await parseJsonBody<{ id: string }>(request);
+		if (!body) return errorResponse('Invalid JSON', 400);
+
+		const user = await ctx.runQuery(internal.usersInternal.getById, { id: body.id as Id<'users'> });
 
 		return new Response(JSON.stringify(user), {
 			headers: { 'Content-Type': 'application/json' }
@@ -107,11 +128,13 @@ http.route({
 	handler: httpAction(async (ctx, request) => {
 		if (!validateSecret(request)) return unauthorizedResponse();
 
-		const { userId, status } = await request.json();
+		const body = await parseJsonBody<{ userId: string; status: string }>(request);
+		if (!body) return errorResponse('Invalid JSON', 400);
+
 		try {
 			const user = await ctx.runMutation(internal.usersInternal.updateStatus, {
-				id: userId,
-				status
+				id: body.userId as Id<'users'>,
+				status: body.status
 			});
 			return new Response(JSON.stringify(user), {
 				headers: { 'Content-Type': 'application/json' }
@@ -146,12 +169,16 @@ http.route({
 	handler: httpAction(async (ctx, request) => {
 		if (!validateSecret(request)) return unauthorizedResponse();
 
-		const { tokenHash, userId, expiresAt } = await request.json();
+		const body = await parseJsonBody<{ tokenHash: string; userId: string; expiresAt: number }>(
+			request
+		);
+		if (!body) return errorResponse('Invalid JSON', 400);
+
 		try {
 			const result = await ctx.runMutation(internal.sessionsInternal.create, {
-				tokenHash,
-				userId,
-				expiresAt
+				tokenHash: body.tokenHash,
+				userId: body.userId as Id<'users'>,
+				expiresAt: body.expiresAt
 			});
 			return new Response(JSON.stringify(result), {
 				headers: { 'Content-Type': 'application/json' }
@@ -169,8 +196,12 @@ http.route({
 	handler: httpAction(async (ctx, request) => {
 		if (!validateSecret(request)) return unauthorizedResponse();
 
-		const { tokenHash } = await request.json();
-		const result = await ctx.runQuery(internal.sessionsInternal.validateAndGetUser, { tokenHash });
+		const body = await parseJsonBody<{ tokenHash: string }>(request);
+		if (!body) return errorResponse('Invalid JSON', 400);
+
+		const result = await ctx.runQuery(internal.sessionsInternal.validateAndGetUser, {
+			tokenHash: body.tokenHash
+		});
 
 		return new Response(JSON.stringify(result), {
 			headers: { 'Content-Type': 'application/json' }
@@ -185,8 +216,10 @@ http.route({
 	handler: httpAction(async (ctx, request) => {
 		if (!validateSecret(request)) return unauthorizedResponse();
 
-		const { tokenHash } = await request.json();
-		await ctx.runMutation(internal.sessionsInternal.remove, { tokenHash });
+		const body = await parseJsonBody<{ tokenHash: string }>(request);
+		if (!body) return errorResponse('Invalid JSON', 400);
+
+		await ctx.runMutation(internal.sessionsInternal.remove, { tokenHash: body.tokenHash });
 
 		return new Response(JSON.stringify({ success: true }), {
 			headers: { 'Content-Type': 'application/json' }
@@ -218,8 +251,12 @@ http.route({
 	handler: httpAction(async (ctx, request) => {
 		if (!validateSecret(request)) return unauthorizedResponse();
 
-		const { id } = await request.json();
-		const room = await ctx.runQuery(internal.chatRoomsInternal.getById, { id });
+		const body = await parseJsonBody<{ id: string }>(request);
+		if (!body) return errorResponse('Invalid JSON', 400);
+
+		const room = await ctx.runQuery(internal.chatRoomsInternal.getById, {
+			id: body.id as Id<'chatRooms'>
+		});
 
 		return new Response(JSON.stringify(room), {
 			headers: { 'Content-Type': 'application/json' }
@@ -236,11 +273,15 @@ http.route({
 	handler: httpAction(async (ctx, request) => {
 		if (!validateSecret(request)) return unauthorizedResponse();
 
-		const { roomId, limit, beforeTimestamp } = await request.json();
+		const body = await parseJsonBody<{ roomId: string; limit?: number; beforeTimestamp?: number }>(
+			request
+		);
+		if (!body) return errorResponse('Invalid JSON', 400);
+
 		const result = await ctx.runQuery(internal.messagesInternal.getByRoom, {
-			roomId,
-			limit,
-			beforeTimestamp
+			roomId: body.roomId as Id<'chatRooms'>,
+			limit: body.limit,
+			beforeTimestamp: body.beforeTimestamp
 		});
 
 		return new Response(JSON.stringify(result), {
@@ -256,17 +297,26 @@ http.route({
 	handler: httpAction(async (ctx, request) => {
 		if (!validateSecret(request)) return unauthorizedResponse();
 
-		const { chatRoomId, senderId, content, type, styleData, hasFormatting, timestamp } =
-			await request.json();
+		const body = await parseJsonBody<{
+			chatRoomId: string;
+			senderId: string;
+			content: string;
+			type: string;
+			styleData?: string;
+			hasFormatting?: boolean;
+			timestamp?: number;
+		}>(request);
+		if (!body) return errorResponse('Invalid JSON', 400);
+
 		try {
 			const message = await ctx.runMutation(internal.messagesInternal.send, {
-				chatRoomId,
-				senderId,
-				content,
-				type,
-				styleData,
-				hasFormatting,
-				timestamp
+				chatRoomId: body.chatRoomId as Id<'chatRooms'>,
+				senderId: body.senderId as Id<'users'>,
+				content: body.content,
+				type: body.type,
+				styleData: body.styleData,
+				hasFormatting: body.hasFormatting,
+				timestamp: body.timestamp
 			});
 			return new Response(JSON.stringify(message), {
 				headers: { 'Content-Type': 'application/json' }
@@ -286,9 +336,11 @@ http.route({
 	handler: httpAction(async (ctx, request) => {
 		if (!validateSecret(request)) return unauthorizedResponse();
 
-		const { userId } = await request.json();
+		const body = await parseJsonBody<{ userId: string }>(request);
+		if (!body) return errorResponse('Invalid JSON', 400);
+
 		const preferences = await ctx.runQuery(internal.textPreferencesInternal.getByUserId, {
-			userId
+			userId: body.userId as Id<'users'>
 		});
 
 		return new Response(JSON.stringify(preferences), {
@@ -304,13 +356,29 @@ http.route({
 	handler: httpAction(async (ctx, request) => {
 		if (!validateSecret(request)) return unauthorizedResponse();
 
-		const { userId, defaultStyle, allowFormatting, maxMessageLength } = await request.json();
+		const body = await parseJsonBody<{
+			userId: string;
+			defaultStyle: {
+				fontFamily: string;
+				fontSize: number;
+				color?: string;
+				gradient?: string[];
+				bold: boolean;
+				italic: boolean;
+				underline: boolean;
+				strikethrough: boolean;
+			};
+			allowFormatting: boolean;
+			maxMessageLength: number;
+		}>(request);
+		if (!body) return errorResponse('Invalid JSON', 400);
+
 		try {
 			const result = await ctx.runMutation(internal.textPreferencesInternal.upsert, {
-				userId,
-				defaultStyle,
-				allowFormatting,
-				maxMessageLength
+				userId: body.userId as Id<'users'>,
+				defaultStyle: body.defaultStyle,
+				allowFormatting: body.allowFormatting,
+				maxMessageLength: body.maxMessageLength
 			});
 			return new Response(JSON.stringify({ success: true, id: result }), {
 				headers: { 'Content-Type': 'application/json' }

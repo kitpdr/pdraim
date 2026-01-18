@@ -41,7 +41,10 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	}
 
 	// Get the IP address for rate limiting and Turnstile validation
-	const ip = request.headers.get('x-forwarded-for') || 'unknown';
+	// Prefer Cloudflare's CF-Connecting-IP header, then x-forwarded-for (first IP), then fallback
+	const cfConnectingIp = request.headers.get('cf-connecting-ip');
+	const forwardedFor = request.headers.get('x-forwarded-for') || '';
+	const ip = cfConnectingIp || forwardedFor.split(',')[0]?.trim() || 'unknown';
 	const maskedIp = ip
 		.split('.')
 		.map((octet, idx) => (idx < 3 ? 'xxx' : octet))
