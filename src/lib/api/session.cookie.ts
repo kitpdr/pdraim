@@ -5,6 +5,13 @@ const log = createLogger('session-cookie');
 
 // Helper function to determine cookie domain
 function getCookieDomain(): string | undefined {
+	// Allow explicit override via environment variable
+	const envDomain = process.env.COOKIE_DOMAIN;
+	if (envDomain) {
+		log.debug('Using COOKIE_DOMAIN from environment:', { domain: envDomain });
+		return envDomain;
+	}
+
 	if (process.env.NODE_ENV === 'production') {
 		// Check for Cloudflare Pages domain
 		if (process.env.CF_PAGES_URL) {
@@ -14,11 +21,12 @@ function getCookieDomain(): string | undefined {
 			if (process.env.CF_PAGES_BRANCH !== 'main') {
 				return undefined;
 			}
-			// For production, use the main domain
-			return '.pdraim.pages.dev';
+			// For production on Cloudflare Pages, use host-only cookie (safest default)
+			// Set COOKIE_DOMAIN explicitly if cross-subdomain cookies are needed
+			return undefined;
 		}
-		// Fallback for custom domain
-		return '.pdraim.org';
+		// Production without explicit domain - use host-only cookie (safest default)
+		return undefined;
 	}
 	return undefined;
 }

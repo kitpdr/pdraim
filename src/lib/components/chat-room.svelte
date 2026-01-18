@@ -816,7 +816,9 @@
 
 					<!-- Offline users section -->
 					{#if usersOffline.length > 0}
-						<div class="section-separator"></div>
+						{#if usersOnline.length > 0}
+							<div class="section-separator"></div>
+						{/if}
 						<p class="section-header offline-header">Hors ligne ({usersOffline.length})</p>
 						{#each usersOffline as user (user.id)}
 							<div class="user offline">

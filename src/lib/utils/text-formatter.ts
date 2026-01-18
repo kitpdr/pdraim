@@ -5,6 +5,7 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import rehypeStringify from 'rehype-stringify';
 import type { TextStyle } from '../types/text-formatting';
 import { validateTextStyle } from '../types/text-formatting';
+import { isValidBBCodeColor, isValidBBCodeFontSize, isValidBBCodeFont } from '../validation/bbcode';
 
 // Define allowed HTML tags and attributes for security
 const ALLOWED_SCHEMA = {
@@ -25,8 +26,8 @@ const ALLOWED_SCHEMA = {
 	}
 };
 
-// BBCode-style formatting patterns
-const BB_CODE_PATTERNS: Array<{
+// BBCode-style formatting patterns (simple ones with static replacement)
+const BB_CODE_SIMPLE_PATTERNS: Array<{
 	pattern: RegExp;
 	replacement: string;
 }> = [
@@ -40,26 +41,39 @@ const BB_CODE_PATTERNS: Array<{
 	{ pattern: /\[u\](.*?)\[\/u\]/gi, replacement: '<u>$1</u>' },
 
 	// Strikethrough
-	{ pattern: /\[s\](.*?)\[\/s\]/gi, replacement: '<s>$1</s>' },
-
-	// Color
-	{
-		pattern: /\[color=([#\w]+)\](.*?)\[\/color\]/gi,
-		replacement: '<span style="color: $1">$2</span>'
-	},
-
-	// Size
-	{
-		pattern: /\[size=(\d+)\](.*?)\[\/size\]/gi,
-		replacement: '<span style="font-size: $1px">$2</span>'
-	},
-
-	// Font
-	{
-		pattern: /\[font=([^[\]]+)\](.*?)\[\/font\]/gi,
-		replacement: '<span style="font-family: $1">$2</span>'
-	}
+	{ pattern: /\[s\](.*?)\[\/s\]/gi, replacement: '<s>$1</s>' }
 ];
+
+// BBCode patterns that require validation (using Zod schemas)
+function processBBCodeWithValidation(text: string): string {
+	let result = text;
+
+	// Color - validate hex or named colors using Zod schema
+	result = result.replace(/\[color=([#\w]+)\](.*?)\[\/color\]/gi, (match, color, content) => {
+		if (isValidBBCodeColor(color)) {
+			return `<span style="color: ${color}">${content}</span>`;
+		}
+		return content; // Strip invalid color, keep content
+	});
+
+	// Size - validate range 8-24px using Zod schema
+	result = result.replace(/\[size=(\d+)\](.*?)\[\/size\]/gi, (match, size, content) => {
+		if (isValidBBCodeFontSize(size)) {
+			return `<span style="font-size: ${size}px">${content}</span>`;
+		}
+		return content; // Strip invalid size, keep content
+	});
+
+	// Font - validate against allowed fonts using Zod schema
+	result = result.replace(/\[font=([^[\]]+)\](.*?)\[\/font\]/gi, (match, font, content) => {
+		if (isValidBBCodeFont(font)) {
+			return `<span style="font-family: ${font}">${content}</span>`;
+		}
+		return content; // Strip invalid font, keep content
+	});
+
+	return result;
+}
 
 // Markdown-style formatting patterns
 const MARKDOWN_PATTERNS: Array<{
@@ -85,10 +99,13 @@ const MARKDOWN_PATTERNS: Array<{
 function preprocessFormatting(text: string): string {
 	let processedText = text;
 
-	// Apply BBCode patterns first
-	BB_CODE_PATTERNS.forEach(({ pattern, replacement }) => {
+	// Apply simple BBCode patterns first (bold, italic, underline, strikethrough)
+	BB_CODE_SIMPLE_PATTERNS.forEach(({ pattern, replacement }) => {
 		processedText = processedText.replace(pattern, replacement);
 	});
+
+	// Apply BBCode patterns that require validation (color, size, font)
+	processedText = processBBCodeWithValidation(processedText);
 
 	// Apply Markdown patterns (but avoid conflicts with already processed BBCode)
 	MARKDOWN_PATTERNS.forEach(({ pattern, replacement }) => {
@@ -176,11 +193,14 @@ export async function formatText(
 	}
 }
 
-// Utility function to escape HTML
-function escapeHtml(text: string): string {
-	const div = document.createElement('div');
-	div.textContent = text;
-	return div.innerHTML;
+// Utility function to escape HTML (isomorphic - works in SSR and browser)
+export function escapeHtml(text: string): string {
+	return text
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#039;');
 }
 
 // Generate CSS style string excluding font-family (which should be handled by classes)
@@ -223,13 +243,10 @@ export function createGradientText(
 	className: string = 'gradient-text',
 	style?: TextStyle
 ): string {
-	console.debug('createGradientText called with:', { text, colors, className, style });
-
 	if (colors.length < 2) {
 		const fontClass = style?.fontFamily ? ` retro-font-${style.fontFamily}` : '';
 		const inlineStyle = style ? generateCSSStyleWithoutFont({ ...style, gradient: undefined }) : '';
 		const result = `<span class="${className}${fontClass}" style="${inlineStyle}">${escapeHtml(text)}</span>`;
-		console.debug('Single color result:', result);
 		return result;
 	}
 
@@ -294,7 +311,6 @@ export function createGradientText(
 		? generateCSSStyleWithoutFont({ ...style, gradient: undefined, color: undefined })
 		: '';
 	const result = `<span class="${className}${fontClass}" style="display: inline; ${containerStyle}">${gradientSpans.join('')}</span>`;
-	console.debug('Final gradient HTML:', result);
 	return result;
 }
 
