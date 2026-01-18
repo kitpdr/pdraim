@@ -91,6 +91,21 @@
 		}));
 	});
 
+	// Messages loaded via pagination (older history)
+	let pagedMessages = $state<Message[]>([]);
+
+	// Merge paginated messages with live subscription data
+	const allMessages = $derived.by<EnrichedMessage[]>(() => {
+		const merged = new Map<string, EnrichedMessage>();
+		for (const msg of pagedMessages) {
+			merged.set(msg.id, enrichMessage(msg));
+		}
+		for (const msg of messages) {
+			merged.set(msg.id, msg);
+		}
+		return Array.from(merged.values()).sort((a, b) => a.timestamp - b.timestamp);
+	});
+
 	// Loading and error states from Convex
 	const isInitialLoading = $derived(
 		defaultRoomQuery.isLoading || usersQuery.isLoading || messagesQuery?.isLoading
@@ -165,11 +180,11 @@
 	// Visible messages (limit for non-logged-in users)
 	const visibleMessages = $derived.by<EnrichedMessage[]>(() => {
 		const isLoggedIn = Boolean(currentUser);
-		return isLoggedIn ? messages : messages.slice(Math.max(0, messages.length - 50));
+		return isLoggedIn ? allMessages : allMessages.slice(Math.max(0, allMessages.length - 50));
 	});
 
 	// Show registration prompt for non-logged-in users
-	const showRegistrationPrompt = $derived(!currentUser && messages.length > 50);
+	const showRegistrationPrompt = $derived(!currentUser && allMessages.length > 50);
 
 	// Character counter
 	const CHAR_WARNING_THRESHOLD = Math.floor(MAX_MESSAGE_LENGTH * 0.8);
@@ -206,12 +221,39 @@
 
 	// Update oldest timestamp for pagination
 	$effect(() => {
-		if (messages.length > 0) {
-			oldestMessageTimestamp = Math.min(...messages.map((m) => m.timestamp));
+		if (allMessages.length > 0) {
+			oldestMessageTimestamp = Math.min(...allMessages.map((m) => m.timestamp));
 		}
 	});
 
 	// ============ HELPERS ============
+
+	function resolveUser(senderId: string): SafeUser {
+		const knownUser = onlineUsers.find((user) => user.id === senderId);
+		if (knownUser) return knownUser;
+		return {
+			id: senderId,
+			nickname: 'Unknown User',
+			status: 'offline',
+			avatarUrl: null,
+			lastSeen: null
+		};
+	}
+
+	function enrichMessage(message: Message): EnrichedMessage {
+		return {
+			...message,
+			user: resolveUser(message.senderId)
+		};
+	}
+
+	function mergePagedMessages(incoming: Message[]) {
+		if (incoming.length === 0) return;
+		const existingIds = new Set(pagedMessages.map((message) => message.id));
+		const newMessages = incoming.filter((message) => !existingIds.has(message.id));
+		if (newMessages.length === 0) return;
+		pagedMessages = [...pagedMessages, ...newMessages];
+	}
 
 	const debouncedSaveWindowState = debounce(saveWindowState, 300);
 
@@ -365,16 +407,19 @@
 						if (data.messages.length === 0) {
 							hasMoreMessages = false;
 						} else {
-							// Messages will be updated via Convex subscription
-							// Just update pagination state
+							const fetchedMessages = data.messages as Message[];
+							mergePagedMessages(fetchedMessages);
+
 							requestAnimationFrame(() => {
 								const newScrollHeight = chatArea.scrollHeight;
 								const heightDifference = newScrollHeight - scrollHeight;
 								chatArea.scrollTop = currentScrollTop + heightDifference;
 							});
 
-							const newOldest = Math.min(...data.messages.map((m: Message) => m.timestamp));
-							oldestMessageTimestamp = newOldest;
+							const newOldest = Math.min(...fetchedMessages.map((m) => m.timestamp));
+							oldestMessageTimestamp = oldestMessageTimestamp
+								? Math.min(oldestMessageTimestamp, newOldest)
+								: newOldest;
 							hasMoreMessages = data.hasMore;
 						}
 					}

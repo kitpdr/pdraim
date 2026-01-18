@@ -4,11 +4,15 @@ import convex from '$lib/db/convex.server';
 import { DEFAULT_USER_PREFERENCES, type UserTextPreferences } from '$lib/types/text-formatting';
 import { validateSessionToken } from '$lib/api/session.server';
 
+const isKitHttpError = (err: unknown): err is { status: number; body: unknown } => {
+	return typeof err === 'object' && err !== null && 'status' in err && 'body' in err;
+};
+
 // GET - Fetch current user's text preferences
 export const GET: RequestHandler = async ({ cookies }) => {
 	try {
 		// Get session token from cookie
-		const sessionToken = cookies.get('pdraim_session');
+		const sessionToken = cookies.get('session');
 		if (!sessionToken) {
 			throw error(401, 'No session found');
 		}
@@ -44,7 +48,7 @@ export const GET: RequestHandler = async ({ cookies }) => {
 		});
 	} catch (err) {
 		console.error('Failed to fetch text preferences:', err);
-		if (err instanceof Response) {
+		if (err instanceof Response || isKitHttpError(err)) {
 			throw err;
 		}
 		throw error(500, 'Failed to fetch preferences');
@@ -55,7 +59,7 @@ export const GET: RequestHandler = async ({ cookies }) => {
 export const POST: RequestHandler = async ({ cookies, request }) => {
 	try {
 		// Get session token from cookie
-		const sessionToken = cookies.get('pdraim_session');
+		const sessionToken = cookies.get('session');
 		if (!sessionToken) {
 			throw error(401, 'No session found');
 		}
@@ -94,7 +98,7 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 		});
 	} catch (err) {
 		console.error('Failed to save text preferences:', err);
-		if (err instanceof Response) {
+		if (err instanceof Response || isKitHttpError(err)) {
 			throw err;
 		}
 		throw error(500, 'Failed to save preferences');
