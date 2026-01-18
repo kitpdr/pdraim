@@ -123,13 +123,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	// Identify public chat and room requests if there is no valid session
+	// Identify public chat requests if there is no valid session
 	const isPublicChatRequest =
 		event.url.pathname.startsWith('/api/chat/messages') && event.request.method === 'GET';
-	const isPublicRoomRequest =
-		event.url.pathname.startsWith('/api/rooms/') && event.request.method === 'GET';
 
-	if ((isPublicChatRequest || isPublicRoomRequest) && !event.locals.session) {
+	if (isPublicChatRequest && !event.locals.session) {
 		log.debug('Public request accessed', { path: event.url.pathname });
 		const response = await resolve(event);
 		return addSecurityHeaders(response);
@@ -152,14 +150,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 		return addSecurityHeaders(response);
 	}
 
-	// Skip rate limiting for SSE endpoint when authenticated
-	if (event.url.pathname.startsWith('/api/sse')) {
-		const response = await resolve(event);
-		return addSecurityHeaders(response);
-	}
-
 	// Apply rate limiting for non-public endpoints
-	if (!isPublicChatRequest && !isPublicRoomRequest) {
+	if (!isPublicChatRequest) {
 		const rateLimitResult = await handleRateLimit(event);
 		if (rateLimitResult?.status === 429) {
 			return new Response('Too Many Requests', {
