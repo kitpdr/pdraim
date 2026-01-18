@@ -100,8 +100,9 @@
 <div class="text-style-selector" class:compact>
 	<!-- Font Family Selection -->
 	<div class="style-group">
-		<label>Font:</label>
+		<label for="font-family-select">Font:</label>
 		<select
+			id="font-family-select"
 			bind:value={style.fontFamily}
 			onchange={(e) => selectFont((e.target as HTMLSelectElement).value as FontFamily)}
 		>
@@ -115,8 +116,9 @@
 
 	<!-- Font Size -->
 	<div class="style-group">
-		<label>Size:</label>
+		<label for="font-size-range">Size:</label>
 		<input
+			id="font-size-range"
 			type="range"
 			min="8"
 			max="18"
@@ -164,14 +166,13 @@
 
 	<!-- Color & Gradient Selection -->
 	<div class="style-group">
-		<label>Color:</label>
+		<span class="label-text">Color:</span>
 		<div class="color-controls">
 			<ColorPicker256
 				bind:selectedColor={currentColor}
 				bind:selectedGradient={currentGradient}
 				onColorChange={handleColorChange}
 				onGradientChange={handleGradientChange}
-				compact={false}
 			/>
 		</div>
 	</div>
@@ -179,7 +180,7 @@
 	<!-- Preview -->
 	{#if showPreview}
 		<div class="preview-section">
-			<label>Preview:</label>
+			<span class="label-text">Preview:</span>
 			<div class="preview-text" style={generateCSSStyle(style)}>
 				{#if isProcessing}
 					<span class="loading">Processing...</span>
@@ -212,7 +213,8 @@
 		margin-bottom: 8px;
 	}
 
-	.style-group label {
+	.style-group label,
+	.style-group .label-text {
 		font-weight: bold;
 		min-width: 50px;
 	}
@@ -271,7 +273,7 @@
 		border-top: 1px solid #ccc;
 	}
 
-	.preview-section label {
+	.preview-section .label-text {
 		display: block;
 		margin-bottom: 4px;
 		font-weight: bold;
@@ -300,7 +302,8 @@
 		margin-bottom: 4px;
 	}
 
-	.compact .style-group label {
+	.compact .style-group label,
+	.compact .style-group .label-text {
 		min-width: 40px;
 		font-size: 10px;
 	}
@@ -309,11 +312,5 @@
 		width: 20px;
 		height: 20px;
 		font-size: 10px;
-	}
-
-	.compact .color-button,
-	.compact .gradient-button {
-		font-size: 9px;
-		padding: 1px 4px;
 	}
 </style>
