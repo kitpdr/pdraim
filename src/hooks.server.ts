@@ -33,21 +33,53 @@ async function setAllUsersOffline() {
 	}
 }
 
-// Initialize server
-Promise.resolve()
-	.then(async () => {
-		log.info('Initializing server...');
-		await ensureDefaultChatRoom();
-		await setAllUsersOffline();
-		log.info('Server initialized successfully');
-	})
-	.catch((error: unknown) => {
-		log.error('Failed to initialize server:', { error });
-		process.exit(1);
-	});
+// Initialize server (deferred, non-blocking for Cloudflare Workers compatibility)
+let initPromise: Promise<void> | null = null;
+let lastFailedAttempt = 0;
+let failureCount = 0;
+const BASE_COOLDOWN = 5000; // 5 seconds
+const MAX_COOLDOWN = 60000; // 1 minute max
+
+function initializeServer(): Promise<void> {
+	if (initPromise) return initPromise;
+
+	// Exponential backoff after failures
+	if (lastFailedAttempt > 0) {
+		const cooldown = Math.min(BASE_COOLDOWN * Math.pow(2, failureCount - 1), MAX_COOLDOWN);
+		if (Date.now() - lastFailedAttempt < cooldown) {
+			return Promise.resolve();
+		}
+	}
+
+	initPromise = (async () => {
+		try {
+			log.info('Initializing server...');
+			await ensureDefaultChatRoom();
+			await setAllUsersOffline();
+			log.info('Server initialized successfully');
+			lastFailedAttempt = 0;
+			failureCount = 0;
+		} catch (error: unknown) {
+			log.error('Failed to initialize server:', { error, failureCount: failureCount + 1 });
+			lastFailedAttempt = Date.now();
+			failureCount++;
+			initPromise = null;
+		}
+	})();
+
+	return initPromise;
+}
 
 export const handle: Handle = async ({ event, resolve }) => {
-	log.debug('Handling request', { path: event.url.pathname });
+	const path = event.url.pathname;
+
+	// Skip initialization for static assets and non-API routes
+	const needsInit = path.startsWith('/api/') && !path.startsWith('/api/health');
+	if (needsInit) {
+		await initializeServer();
+	}
+
+	log.debug('Handling request', { path });
 
 	// CSRF protection: validate Origin header for state-changing requests
 	if (event.request.method !== 'GET' && event.request.method !== 'HEAD') {
