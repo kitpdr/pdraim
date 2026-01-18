@@ -34,20 +34,25 @@ async function setAllUsersOffline() {
 }
 
 // Initialize server (deferred, non-blocking for Cloudflare Workers compatibility)
-let initialized = false;
-async function initializeServer() {
-	if (initialized) return;
-	initialized = true;
-	try {
-		log.info('Initializing server...');
-		await ensureDefaultChatRoom();
-		await setAllUsersOffline();
-		log.info('Server initialized successfully');
-	} catch (error: unknown) {
-		log.error('Failed to initialize server:', { error });
-		// Don't exit - let the server continue and retry on next request
-		initialized = false;
-	}
+let initPromise: Promise<void> | null = null;
+
+function initializeServer(): Promise<void> {
+	if (initPromise) return initPromise;
+
+	initPromise = (async () => {
+		try {
+			log.info('Initializing server...');
+			await ensureDefaultChatRoom();
+			await setAllUsersOffline();
+			log.info('Server initialized successfully');
+		} catch (error: unknown) {
+			log.error('Failed to initialize server:', { error });
+			// Reset so next request can retry
+			initPromise = null;
+		}
+	})();
+
+	return initPromise;
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
