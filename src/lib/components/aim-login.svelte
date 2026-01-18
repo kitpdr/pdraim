@@ -17,6 +17,7 @@
 
 	let { showAuth = $bindable(), onLoginSuccess, activeTab: initialTab = 'signin' } = $props();
 
+	// svelte-ignore state_referenced_locally - intentionally capturing initial value
 	let activeTab = $state(initialTab);
 
 	// Sign In state

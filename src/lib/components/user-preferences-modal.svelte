@@ -89,8 +89,9 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="preferences-title"
+		tabindex="-1"
 	>
-		<!-- Modal content -->
+		<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 		<div class="modal-window window" onclick={(e) => e.stopPropagation()}>
 			<div class="title-bar">
 				<div class="title-bar-text" id="preferences-title">Text Formatting Preferences</div>
