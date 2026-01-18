@@ -1,18 +1,12 @@
-import { v4 as uuidv4 } from 'uuid';
-import db from '$lib/db/db.server';
-import { messages } from '$lib/db/schema';
+import { messages, chatRooms, users } from '$lib/db/convex.server';
+import { getDefaultChatRoomId } from '$lib/utils/chat.server';
 import type { Message } from '$lib/types/chat';
 import type { SendMessageResponse, GetMessagesResponse } from '$lib/types/payloads';
-import { and, desc, eq, lt } from 'drizzle-orm/sql';
-import type { SQL } from 'drizzle-orm/sql';
 import { error } from '@sveltejs/kit';
-import { sseEmitter } from '$lib/sse/SSEEventEmitter';
-import { chatRooms } from '$lib/db/schema';
-import { users } from '$lib/db/schema';
-import { DEFAULT_CHAT_ROOM_ID } from '$lib/utils/chat.server';
 import { createLogger } from '$lib/utils/logger.server';
 import { sanitizeStyleData } from '$lib/validation/text-formatting';
 import { sendMessageSchema } from '$lib/validation/message';
+import type { RequestHandler } from './$types';
 
 const log = createLogger('chat-server');
 
@@ -31,7 +25,6 @@ function updateUserCooldown(userId: string): { canSend: boolean; retryAfter?: nu
 		currentCooldown: INITIAL_COOLDOWN
 	};
 
-	// Check if enough time has passed since the last message
 	const timeSinceLastMessage = now - userState.lastMessageTime;
 	if (timeSinceLastMessage < userState.currentCooldown) {
 		return {
@@ -40,11 +33,9 @@ function updateUserCooldown(userId: string): { canSend: boolean; retryAfter?: nu
 		};
 	}
 
-	// Reset cooldown if it's been long enough
 	if (timeSinceLastMessage > userState.currentCooldown * 2) {
 		userState.currentCooldown = INITIAL_COOLDOWN;
 	} else {
-		// Exponential backoff
 		userState.currentCooldown = Math.min(userState.currentCooldown * 2, MAX_COOLDOWN);
 	}
 
@@ -54,68 +45,65 @@ function updateUserCooldown(userId: string): { canSend: boolean; retryAfter?: nu
 	return { canSend: true };
 }
 
-// GET endpoint: fetch messages directly from DB
-export async function GET({ request, locals }) {
-	const url = new URL(request.url);
+// GET endpoint: fetch messages from Convex
+export const GET: RequestHandler = async ({ url, locals }) => {
 	const beforeTimestamp = url.searchParams.get('before');
-	const roomId = url.searchParams.get('roomId') || DEFAULT_CHAT_ROOM_ID;
+	const roomIdParam = url.searchParams.get('roomId');
 	const isPublic = url.searchParams.get('public') === 'true';
 
+	// Use default room if not specified
+	const roomId = roomIdParam || getDefaultChatRoomId();
+
+	if (!roomId) {
+		log.error('No room ID available');
+		throw error(500, 'Chat room not configured');
+	}
+
 	try {
-		log.debug('Fetching messages from database', {
+		log.debug('Fetching messages from Convex', {
 			beforeTimestamp,
 			roomId,
 			isAuthenticated: !!locals.session,
 			isPublic
 		});
 
-		let conditions = eq(messages.chatRoomId, roomId) as SQL<unknown>;
-
-		if (beforeTimestamp) {
-			conditions = and(
-				conditions,
-				lt(messages.timestamp, parseInt(beforeTimestamp))
-			) as SQL<unknown>;
-		}
-
-		// Fetch messages with a limit based on authentication status
-		// Public requests are limited to 50 messages
-		// Authenticated users get 100 messages per request
 		const fetchLimit = isPublic || !locals.session ? 50 : 100;
 
-		const fetchedMessages = await db
-			.select()
-			.from(messages)
-			.where(conditions)
-			.orderBy(desc(messages.timestamp))
-			.limit(fetchLimit)
-			.then((rows) =>
-				rows.map((row) => ({
-					...row,
-					styleData: row.styleData ?? undefined,
-					hasFormatting: row.hasFormatting ?? false
-				}))
-			);
+		const result = await messages.getByRoom(
+			roomId,
+			fetchLimit,
+			beforeTimestamp ? parseInt(beforeTimestamp) : undefined
+		);
+
+		// Map Convex messages to our Message type
+		const fetchedMessages: Message[] = result.messages.map((msg) => ({
+			id: msg._id,
+			chatRoomId: msg.chatRoomId,
+			senderId: msg.senderId,
+			content: msg.content,
+			type: msg.type as Message['type'],
+			timestamp: msg.timestamp,
+			styleData: msg.styleData,
+			hasFormatting: msg.hasFormatting ?? false
+		}));
 
 		const response: GetMessagesResponse = {
 			success: true,
 			messages: fetchedMessages,
-			hasMore: fetchedMessages.length === fetchLimit // Indicate if there might be more messages
+			hasMore: result.hasMore
 		};
 
 		return new Response(JSON.stringify(response), {
-			headers: {
-				'Content-Type': 'application/json'
-			}
+			headers: { 'Content-Type': 'application/json' }
 		});
 	} catch (err) {
 		log.error('Error fetching messages:', { error: err });
 		throw error(500, 'Failed to fetch messages');
 	}
-}
+};
 
-// POST endpoint: receive a new message, save it in the DB, and broadcast via SSE
-export async function POST({ request, locals }: { request: Request; locals: App.Locals }) {
+// POST endpoint: send a new message via Convex
+export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!locals.user) {
 		log.warn('Authentication required');
 		throw error(401, 'Authentication required');
@@ -170,60 +158,41 @@ export async function POST({ request, locals }: { request: Request; locals: App.
 			throw error(403, 'Cannot post messages as another user');
 		}
 
-		const chatRoomId = data.chatRoomId || DEFAULT_CHAT_ROOM_ID;
+		// Use default room if not specified
+		const chatRoomId = data.chatRoomId || getDefaultChatRoomId();
 
-		// Check chat room existence
-		const chatRoom = await db.select().from(chatRooms).where(eq(chatRooms.id, chatRoomId)).get();
-
-		if (!chatRoom) {
-			log.warn('Chat room not found', { chatRoomId });
+		if (!chatRoomId) {
+			log.error('No chat room ID available');
 			const errorResponse: SendMessageResponse = {
 				success: false,
-				error: 'Chat room not found'
+				error: 'Chat room not configured'
 			};
-			return new Response(JSON.stringify(errorResponse), { status: 404 });
-		}
-
-		// Check user existence
-		const user = await db.select().from(users).where(eq(users.id, data.userId)).get();
-
-		if (!user) {
-			const maskedUserId = `${data.userId.slice(0, 4)}...${data.userId.slice(-4)}`;
-			log.warn('User not found', { maskedUserId });
-			const errorResponse: SendMessageResponse = {
-				success: false,
-				error: 'User not found'
-			};
-			return new Response(JSON.stringify(errorResponse), { status: 404 });
+			return new Response(JSON.stringify(errorResponse), { status: 500 });
 		}
 
 		const validatedStyleData = sanitizeStyleData(data.styleData);
 
-		const newMessage: Message = {
-			id: uuidv4(),
+		// Send message via Convex
+		const convexMessage = await messages.send(
 			chatRoomId,
-			senderId: data.userId,
-			content: data.content,
-			type: data.type || 'chat',
-			timestamp: Date.now(),
-			styleData: validatedStyleData ? JSON.stringify(validatedStyleData) : undefined,
-			hasFormatting: Boolean(validatedStyleData)
+			data.userId,
+			data.content,
+			data.type || 'chat',
+			validatedStyleData ? JSON.stringify(validatedStyleData) : undefined,
+			Boolean(validatedStyleData)
+		);
+
+		// Map to our Message type
+		const newMessage: Message = {
+			id: convexMessage._id,
+			chatRoomId: convexMessage.chatRoomId,
+			senderId: convexMessage.senderId,
+			content: convexMessage.content,
+			type: convexMessage.type as Message['type'],
+			timestamp: convexMessage.timestamp,
+			styleData: convexMessage.styleData,
+			hasFormatting: convexMessage.hasFormatting ?? false
 		};
-
-		// debug style data content at this point
-		log.debug('Style data content', { styleData: validatedStyleData });
-
-		// Save to DB
-		await db.insert(messages).values(newMessage);
-		log.debug('Message saved in DB', {
-			messageId: newMessage.id,
-			chatRoomId: newMessage.chatRoomId,
-			type: newMessage.type,
-			timestamp: newMessage.timestamp
-		});
-
-		// Broadcast the new message via SSE
-		sseEmitter.emit('chatMessage', newMessage);
 
 		log.debug('Message processed successfully', {
 			messageId: newMessage.id,
@@ -240,9 +209,9 @@ export async function POST({ request, locals }: { request: Request; locals: App.
 			status: 201,
 			headers: { 'Content-Type': 'application/json' }
 		});
-	} catch (error) {
+	} catch (err) {
 		log.error('Error processing message', {
-			error: error instanceof Error ? error.message : 'Unknown error'
+			error: err instanceof Error ? err.message : 'Unknown error'
 		});
 		const errorResponse: SendMessageResponse = {
 			success: false,
@@ -253,4 +222,4 @@ export async function POST({ request, locals }: { request: Request; locals: App.
 			headers: { 'Content-Type': 'application/json' }
 		});
 	}
-}
+};
