@@ -1,11 +1,9 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import type { RegisterResponseSuccess, RegisterResponseError } from '$lib/types/payloads';
-import db from '$lib/db/db.server';
-import { users } from '$lib/db/schema';
+import { users } from '$lib/db/convex.server';
 import { hashPassword } from '$lib/utils/password';
 import { createRegistrationSchema, DEFAULT_PASSWORD_CONSTRAINTS } from '$lib/validation/password';
 import { createLogger } from '$lib/utils/logger.server';
-import { eq } from 'drizzle-orm/sql';
 
 const log = createLogger('register-server');
 
@@ -102,9 +100,9 @@ export const POST: RequestHandler = async ({ request }) => {
 	const username = suUsername.trim();
 	const password = suPassword.trim();
 
-	// Check if nickname already exists
-	const existingUser = await db.select().from(users).where(eq(users.nickname, username));
-	if (existingUser.length > 0) {
+	// Check if nickname already exists using Convex
+	const existingUser = await users.getByNickname(username);
+	if (existingUser) {
 		log.warn('Username already exists', { username });
 		return new Response(
 			JSON.stringify({ error: 'This username is already taken' } as RegisterResponseError),
@@ -123,17 +121,13 @@ export const POST: RequestHandler = async ({ request }) => {
 			{ status: 500 }
 		);
 	}
-	// Insert the new user into the database.
+
+	// Insert the new user into Convex
 	try {
-		await db.insert(users).values({
-			nickname: username,
-			password: hashedPassword,
-			createdAt: Date.now()
-		});
+		await users.create(username, hashedPassword);
 		log.info(`User ${username} registered successfully`);
 	} catch (err: unknown) {
 		log.error('Database insertion error', { error: err as object });
-		// Assume a duplicate user error if the email (or derived unique field) already exists.
 		return new Response(
 			JSON.stringify({
 				error: 'User registration failed. Possibly user already exists.'
