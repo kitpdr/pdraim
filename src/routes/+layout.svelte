@@ -1,9 +1,13 @@
 <script lang="ts">
 	import '../app.css';
+	import { setupConvex } from 'convex-svelte';
+	import { PUBLIC_CONVEX_URL } from '$env/static/public';
 	import { chatState } from '$lib/states/chat.svelte';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
-	import { SSE_CONFIG } from '$lib/sse/config';
+
+	// Initialize Convex client for real-time subscriptions
+	setupConvex(PUBLIC_CONVEX_URL);
 
 	let { children, data } = $props();
 	let isVisible = $state(true);
@@ -12,14 +16,14 @@
 	let updateInProgress = $state(false);
 	let idleTimeout = $state<number | undefined>(undefined);
 
-	// Timing constants from SSE config for consistency
+	// Status update timing constants
 	let lastSentStatus = $state<string | null>(null);
 	let lastStatusSentAt = $state<number>(0);
 	let lastUserActivity = $state<number>(Date.now());
-	const STATUS_UPDATE_INTERVAL = SSE_CONFIG.STATUS_UPDATE_INTERVAL; // 30 seconds
+	const STATUS_UPDATE_INTERVAL = 30000; // 30 seconds
 	const THROTTLE_TIME_MS = 10000; // 10 seconds
-	const FORCE_UPDATE_INTERVAL = SSE_CONFIG.CONNECTION_TIMEOUT; // 5 minutes
-	const IDLE_TIMEOUT = SSE_CONFIG.IDLE_TIMEOUT; // 2 minutes of inactivity = idle (aligned with server)
+	const FORCE_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes
+	const IDLE_TIMEOUT = 2 * 60 * 1000; // 2 minutes of inactivity = idle
 
 	type UserStatus = 'online' | 'offline' | 'busy' | 'idle';
 

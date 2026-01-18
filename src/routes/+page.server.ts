@@ -1,9 +1,11 @@
 import type { PageServerLoad } from './$types';
 import { validateSessionToken } from '$lib/api/session.server';
-import db from '$lib/db/db.server';
-import { messages } from '$lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
-import { DEFAULT_TEXT_STYLE, type TextStyle } from '$lib/types/text-formatting';
+import {
+	DEFAULT_TEXT_STYLE,
+	DEFAULT_USER_PREFERENCES,
+	type TextStyle
+} from '$lib/types/text-formatting';
+import convex from '$lib/db/convex.server';
 
 export const load: PageServerLoad = async ({ cookies }) => {
 	const token = cookies.get('session');
@@ -11,7 +13,8 @@ export const load: PageServerLoad = async ({ cookies }) => {
 	if (!token) {
 		return {
 			user: null,
-			lastTextStyle: DEFAULT_TEXT_STYLE
+			textStyle: DEFAULT_TEXT_STYLE,
+			userPreferences: DEFAULT_USER_PREFERENCES
 		};
 	}
 
@@ -21,43 +24,31 @@ export const load: PageServerLoad = async ({ cookies }) => {
 		if (!user) {
 			return {
 				user: null,
-				lastTextStyle: DEFAULT_TEXT_STYLE
+				textStyle: DEFAULT_TEXT_STYLE,
+				userPreferences: DEFAULT_USER_PREFERENCES
 			};
 		}
 
-		// Get user's last used text styling from their most recent message
-		const lastMessage = await db.query.messages.findFirst({
-			where: eq(messages.senderId, user.id),
-			orderBy: [desc(messages.timestamp)],
-			columns: {
-				styleData: true
-			}
-		});
-
-		let lastTextStyle: TextStyle = DEFAULT_TEXT_STYLE;
-
-		if (lastMessage?.styleData) {
-			try {
-				const parsedStyle = JSON.parse(lastMessage.styleData);
-				// Merge with default style to ensure all required properties
-				lastTextStyle = {
-					...DEFAULT_TEXT_STYLE,
-					...parsedStyle
-				};
-			} catch (error) {
-				console.warn('Failed to parse last text style:', error);
-			}
-		}
+		// Fetch user's text preferences from Convex
+		const prefs = await convex.textPreferences.get(user.id);
 
 		return {
 			user,
-			lastTextStyle
+			textStyle: (prefs?.defaultStyle as TextStyle) ?? DEFAULT_TEXT_STYLE,
+			userPreferences: prefs
+				? {
+						defaultStyle: prefs.defaultStyle as TextStyle,
+						allowFormatting: prefs.allowFormatting,
+						maxMessageLength: prefs.maxMessageLength
+					}
+				: DEFAULT_USER_PREFERENCES
 		};
 	} catch (error) {
 		console.error('Error loading page data:', error);
 		return {
 			user: null,
-			lastTextStyle: DEFAULT_TEXT_STYLE
+			textStyle: DEFAULT_TEXT_STYLE,
+			userPreferences: DEFAULT_USER_PREFERENCES
 		};
 	}
 };

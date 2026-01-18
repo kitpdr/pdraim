@@ -1,16 +1,15 @@
-import { eq } from 'drizzle-orm/sql';
-import db from '$lib/db/db.server';
-import { users } from '$lib/db/schema';
+import { users } from '$lib/db/convex.server';
 import type { SafeUser } from '$lib/types/chat';
 import type { PublicRoomResponse } from '$lib/types/payloads';
 import { createSafeUser } from '$lib/types/chat';
 import { createLogger } from '$lib/utils/logger.server';
+import type { RequestHandler } from './$types';
 
 const log = createLogger('rooms-server');
 
 const ONLINE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
 
-export async function GET({ params, url, locals }): Promise<Response> {
+export const GET: RequestHandler = async ({ params, url, locals }) => {
 	const { roomId } = params;
 	const isPublic = !locals.user || url.searchParams.get('public') === 'true';
 
@@ -26,52 +25,47 @@ export async function GET({ params, url, locals }): Promise<Response> {
 		// Calculate timeout threshold
 		const timeoutThreshold = Date.now() - ONLINE_TIMEOUT_MS;
 
-		// Fetch buddy list: get all users
-		const fetchedUsers = await db.select().from(users).execute();
-
-		// Normalize users to ensure that lastSeen is always a number (using 0 if null)
-		const normalizedUsers = fetchedUsers.map((user: SafeUser & { lastSeen: number | null }) => ({
-			...user,
-			lastSeen: user.lastSeen ?? 0
-		}));
+		// Fetch all users from Convex
+		const fetchedUsers = await users.list();
 
 		// Process users to mark them as offline if they've timed out
-		const processedUsers = normalizedUsers.map((user: SafeUser & { lastSeen: number }) => {
-			const shouldBeOffline = user.status !== 'offline' && user.lastSeen < timeoutThreshold;
+		const processedUsers = fetchedUsers.map((user) => {
+			const lastSeen = user.lastSeen ?? 0;
+			const shouldBeOffline = user.status !== 'offline' && lastSeen < timeoutThreshold;
 			return {
-				...user,
-				status: shouldBeOffline ? 'offline' : user.status
+				id: user._id,
+				nickname: user.nickname,
+				status: shouldBeOffline ? 'offline' : user.status,
+				avatarUrl: user.avatarUrl,
+				lastSeen
 			};
 		});
 
-		// Find users who were originally non-offline but now marked offline
-		const usersToUpdate = processedUsers.filter(
-			(user: SafeUser & { lastSeen: number }) =>
-				user.status === 'offline' &&
-				normalizedUsers.find((u: SafeUser & { lastSeen: number }) => u.id === user.id)?.status !==
-					'offline'
-		);
+		// Find users who should be marked offline and update them
+		const usersToUpdate = processedUsers.filter((user, index) => {
+			const original = fetchedUsers[index];
+			return user.status === 'offline' && original.status !== 'offline';
+		});
 
+		// Update timed-out users in Convex
 		if (usersToUpdate.length > 0) {
-			await Promise.all(
-				usersToUpdate.map((user: SafeUser & { lastSeen: number }) =>
-					db
-						.update(users)
-						.set({ status: 'offline', lastSeen: Date.now() })
-						.where(eq(users.id, user.id))
-						.execute()
-				)
-			);
+			await Promise.all(usersToUpdate.map((user) => users.updateStatus(user.id, 'offline')));
 
 			log.debug('Updated offline status for users', {
 				count: usersToUpdate.length,
-				userIds: usersToUpdate.map((u: SafeUser & { lastSeen: number }) => u.id)
+				userIds: usersToUpdate.map((u) => u.id)
 			});
 		}
 
-		// Sanitize user data using createSafeUser
-		const sanitizedUsers = processedUsers.map((user: SafeUser & { lastSeen: number }) =>
-			createSafeUser(user)
+		// Sanitize user data
+		const sanitizedUsers: SafeUser[] = processedUsers.map((user) =>
+			createSafeUser({
+				id: user.id,
+				nickname: user.nickname,
+				status: user.status,
+				avatarUrl: user.avatarUrl,
+				lastSeen: user.lastSeen
+			})
 		);
 
 		const responseData: PublicRoomResponse = {
@@ -104,4 +98,4 @@ export async function GET({ params, url, locals }): Promise<Response> {
 			headers: { 'Content-Type': 'application/json' }
 		});
 	}
-}
+};

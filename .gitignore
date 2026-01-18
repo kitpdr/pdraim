@@ -25,3 +25,6 @@ vite.config.ts.timestamp-*
 docs/
 
 .serena/
+
+# Migration files (Turso to Convex)
+migration/

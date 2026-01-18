@@ -1,10 +1,11 @@
 import { json } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
 import { validateSessionToken } from '$lib/api/session.server';
 import { createLogger } from '$lib/utils/logger.server';
 
 const log = createLogger('validate-server');
 
-export async function GET({ cookies }) {
+export const GET: RequestHandler = async ({ cookies }) => {
 	const token = cookies.get('session');
 
 	if (!token) {
@@ -19,9 +20,9 @@ export async function GET({ cookies }) {
 			userId: `${result.user.id.slice(0, 4)}...${result.user.id.slice(-4)}`,
 			sessionId: `${result.session.id.slice(0, 4)}...${result.session.id.slice(-4)}`
 		});
-	} else {
-		log.debug('Invalid session token');
+		return json(result, { status: 200 });
 	}
 
-	return json(result);
-}
+	log.debug('Invalid session token');
+	return json({ session: null, user: null }, { status: 401 });
+};

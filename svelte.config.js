@@ -19,7 +19,12 @@ const config = {
 				'script-src': ['self', 'https://challenges.cloudflare.com'],
 				'style-src': ['self', 'unsafe-inline'],
 				'img-src': ['self', 'data:', 'blob:'],
-				'connect-src': ['self', 'https://challenges.cloudflare.com'],
+				'connect-src': [
+					'self',
+					'https://challenges.cloudflare.com',
+					'https://*.convex.cloud',
+					'wss://*.convex.cloud'
+				],
 				'font-src': ['self'],
 				'frame-src': ['https://challenges.cloudflare.com'],
 				'frame-ancestors': ['none'],
