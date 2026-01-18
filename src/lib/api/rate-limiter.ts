@@ -41,22 +41,33 @@ const RATE_LIMITS = {
 // In-memory store for rate limiting
 const ipRequests = new Map<string, Array<{ timestamp: number }>>();
 
-// Cleanup old entries every 5 minutes
-setInterval(
-	() => {
-		const now = Date.now();
-		for (const [ip, timestamps] of ipRequests.entries()) {
-			// Remove entries older than the maximum duration we care about (5 minutes)
-			const filtered = timestamps.filter((t) => now - t.timestamp < 5 * 60 * 1000);
-			if (filtered.length === 0) {
-				ipRequests.delete(ip);
-			} else {
-				ipRequests.set(ip, filtered);
-			}
-		}
-	},
-	5 * 60 * 1000
+// Compute max duration across all rate limits for cleanup
+const MAX_RATE_LIMIT_DURATION = Math.max(
+	RATE_LIMITS.auth.durationMs,
+	RATE_LIMITS.public.durationMs,
+	RATE_LIMITS.protected.durationMs,
+	RATE_LIMITS.sse.authenticated.durationMs,
+	RATE_LIMITS.sse.unauthenticated.durationMs
 );
+
+// Lazy cleanup: remove stale entries on each check (Cloudflare Workers don't allow setInterval at global scope)
+let lastCleanup = 0;
+
+function cleanupStaleEntries() {
+	const now = Date.now();
+	// Run cleanup at most once per max duration window
+	if (now - lastCleanup < MAX_RATE_LIMIT_DURATION) return;
+	lastCleanup = now;
+
+	for (const [ip, timestamps] of ipRequests.entries()) {
+		const filtered = timestamps.filter((t) => now - t.timestamp < MAX_RATE_LIMIT_DURATION);
+		if (filtered.length === 0) {
+			ipRequests.delete(ip);
+		} else {
+			ipRequests.set(ip, filtered);
+		}
+	}
+}
 
 function getEndpointType(pathname: string, isPublic: boolean): keyof typeof RATE_LIMITS {
 	if (pathname.startsWith('/api/session/login') || pathname.startsWith('/api/register')) {
@@ -88,6 +99,9 @@ function isRateLimited(
 	endpointType: keyof typeof RATE_LIMITS,
 	isAuthenticated: boolean = false
 ): { limited: boolean; retryAfter?: number } {
+	// Lazy cleanup on each check (replaces setInterval for Cloudflare compatibility)
+	cleanupStaleEntries();
+
 	// Skip rate limiting completely in development for localhost
 	if (isDev && (ip === '127.0.0.1' || ip === '::1' || ip === 'localhost')) {
 		return { limited: false };
