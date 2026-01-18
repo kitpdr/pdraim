@@ -119,7 +119,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			log.warn('Login failed - invalid password', {
 				maskedIp,
 				attemptCount: attemptData.count,
-				odlUserId: `${userId.slice(0, 4)}...${userId.slice(-4)}`
+				userId: `${userId.slice(0, 4)}...${userId.slice(-4)}`
 			});
 			const remaining = Math.max(0, MAX_ATTEMPTS - attemptData.count);
 			return new Response(
@@ -150,7 +150,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	setSessionTokenCookie({ cookies }, token, session.expiresAt);
 
 	log.info('Login successful', {
-		odlUserId: `${userId.slice(0, 4)}...${userId.slice(-4)}`,
+		userId: `${userId.slice(0, 4)}...${userId.slice(-4)}`,
 		expiresAt: new Date(session.expiresAt).toISOString()
 	});
 
