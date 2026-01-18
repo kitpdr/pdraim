@@ -5,7 +5,11 @@ import { v } from 'convex/values';
 // Timeout threshold for marking users as offline (2 minutes)
 const ONLINE_TIMEOUT_MS = 2 * 60 * 1000;
 
-// Helper to compute effective status based on lastSeen timeout
+// Helper to compute effective status based on lastSeen timeout.
+// Returns 'online', 'away', 'busy', 'idle', or 'offline'.
+// Note: This is a read-time computation - the database stores the last known status
+// and lastSeen timestamp. The client heartbeat (via /api/status) updates these values.
+// This function computes what to display when a user stops sending heartbeats.
 function computeEffectiveStatus(
 	status: string,
 	lastSeen: number | undefined
