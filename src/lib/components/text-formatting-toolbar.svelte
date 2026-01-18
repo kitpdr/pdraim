@@ -10,19 +10,13 @@
 	// Props
 	let {
 		style = $bindable(DEFAULT_TEXT_STYLE),
-		onPreviewText: _onPreviewText,
 		compact = true,
-		showFontSelector = false,
-		showGradients: _showGradients = true
+		showFontSelector = false
 	} = $props<{
 		style?: TextStyle;
-		onPreviewText?: (text: string) => void;
 		compact?: boolean;
 		showFontSelector?: boolean;
-		showGradients?: boolean;
 	}>();
-	void _showGradients; // Reserved for future use
-	void _onPreviewText; // Reserved for future use
 
 	// State
 	let currentColor = $state(style.color || '#000000');
@@ -145,7 +139,6 @@
 			bind:selectedGradient={currentGradient}
 			onColorChange={handleColorChange}
 			onGradientChange={handleGradientChange}
-			{compact}
 		/>
 	</div>
 </div>

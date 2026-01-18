@@ -6,16 +6,13 @@
 		selectedColor = $bindable('#000000'),
 		selectedGradient = $bindable(undefined),
 		onColorChange,
-		onGradientChange,
-		compact: _compact = true
+		onGradientChange
 	} = $props<{
 		selectedColor?: string;
 		selectedGradient?: string[];
 		onColorChange?: (color: string) => void;
 		onGradientChange?: (gradient: string[]) => void;
-		compact?: boolean;
 	}>();
-	void _compact; // Reserved for future use
 
 	// State
 	let showPicker = $state(false);
@@ -139,6 +136,7 @@
 
 	<!-- Color picker dropdown -->
 	{#if showPicker}
+		<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 		<div class="picker-dropdown sunken-panel" onclick={(e) => e.stopPropagation()}>
 			<!-- Gradient controls -->
 			<div class="gradient-controls">
@@ -157,6 +155,13 @@
 									onclick={(e) => {
 										e.stopPropagation();
 										removeGradientColor(index);
+									}}
+									onkeydown={(e) => {
+										if (e.key === 'Enter' || e.key === ' ') {
+											e.preventDefault();
+											e.stopPropagation();
+											removeGradientColor(index);
+										}
 									}}
 									title="Remove this color"
 									role="button"
