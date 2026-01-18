@@ -1,4 +1,6 @@
 import type { Cookies } from '@sveltejs/kit';
+import { dev } from '$app/environment';
+import { env } from '$env/dynamic/private';
 import { createLogger } from '$lib/utils/logger.server';
 
 const log = createLogger('session-cookie');
@@ -6,19 +8,19 @@ const log = createLogger('session-cookie');
 // Helper function to determine cookie domain
 function getCookieDomain(): string | undefined {
 	// Allow explicit override via environment variable
-	const envDomain = process.env.COOKIE_DOMAIN;
+	const envDomain = env.COOKIE_DOMAIN;
 	if (envDomain) {
 		log.debug('Using COOKIE_DOMAIN from environment:', { domain: envDomain });
 		return envDomain;
 	}
 
-	if (process.env.NODE_ENV === 'production') {
+	if (!dev) {
 		// Check for Cloudflare Pages domain
-		if (process.env.CF_PAGES_URL) {
-			const url = process.env.CF_PAGES_URL;
+		if (env.CF_PAGES_URL) {
+			const url = env.CF_PAGES_URL;
 			log.debug('Cloudflare Pages URL:', { url });
 			// For preview deployments, use host-only cookie
-			if (process.env.CF_PAGES_BRANCH !== 'main') {
+			if (env.CF_PAGES_BRANCH !== 'main') {
 				return undefined;
 			}
 			// For production on Cloudflare Pages, use host-only cookie (safest default)
@@ -44,7 +46,7 @@ export function setSessionTokenCookie(
 	cookies.set('session', token, {
 		httpOnly: true,
 		sameSite: 'lax',
-		secure: process.env.NODE_ENV === 'production',
+		secure: !dev,
 		domain,
 		expires: new Date(expiresAt),
 		path: '/'
@@ -60,7 +62,7 @@ export function deleteSessionTokenCookie({ cookies }: { cookies: Cookies }): voi
 	cookies.set('session', '', {
 		httpOnly: true,
 		sameSite: 'lax',
-		secure: process.env.NODE_ENV === 'production',
+		secure: !dev,
 		domain,
 		maxAge: 0,
 		path: '/'
