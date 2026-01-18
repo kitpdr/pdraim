@@ -14,24 +14,28 @@ const log = createLogger('login-server');
 // In-memory map to track failed login attempts per IP
 const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
 const MAX_ATTEMPTS = 3;
+const ONE_HOUR = 60 * 60 * 1000;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Cleanup old entries every hour
-setInterval(
-	() => {
-		const now = Date.now();
-		const ONE_HOUR = 60 * 60 * 1000;
-		for (const [ip, data] of loginAttempts.entries()) {
-			if (now - data.lastAttempt > ONE_HOUR) {
-				loginAttempts.delete(ip);
-			}
+// Lazy cleanup: Cloudflare Workers don't allow setInterval at global scope
+let lastCleanup = 0;
+function cleanupOldAttempts() {
+	const now = Date.now();
+	if (now - lastCleanup < ONE_HOUR) return;
+	lastCleanup = now;
+
+	for (const [ip, data] of loginAttempts.entries()) {
+		if (now - data.lastAttempt > ONE_HOUR) {
+			loginAttempts.delete(ip);
 		}
-	},
-	60 * 60 * 1000
-);
+	}
+}
 
 export const POST: RequestHandler = async ({ request, cookies }) => {
 	log.debug('New login attempt received');
+
+	// Lazy cleanup on each request (replaces setInterval for Cloudflare compatibility)
+	cleanupOldAttempts();
 
 	if (request.method !== 'POST') {
 		log.warn('Invalid method used', { method: request.method });
