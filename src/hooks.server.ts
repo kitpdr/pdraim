@@ -1,7 +1,6 @@
 import type { Handle } from '@sveltejs/kit';
-import db from '$lib/db/db.server';
+import { users } from '$lib/db/convex.server';
 import { handleRateLimit } from '$lib/api/rate-limiter';
-import { users } from '$lib/db/schema';
 import { createLogger } from '$lib/utils/logger.server';
 import { ensureDefaultChatRoom } from '$lib/utils/chat.server';
 import { validateSessionToken } from '$lib/api/session.server';
@@ -24,11 +23,11 @@ function addSecurityHeaders(response: Response): Response {
 	});
 }
 
-// Set all users to offline on server start
+// Set all users to offline on server start (using Convex)
 async function setAllUsersOffline() {
 	try {
-		await db.update(users).set({ status: 'offline' });
-		log.info('All users set to offline on server start');
+		const result = await users.setAllOffline();
+		log.info('All users set to offline on server start', { updated: result.updated });
 	} catch (error: unknown) {
 		log.error('Failed to set users offline on server start:', { error });
 	}
@@ -38,7 +37,7 @@ async function setAllUsersOffline() {
 Promise.resolve()
 	.then(async () => {
 		log.info('Initializing server...');
-		await ensureDefaultChatRoom(db);
+		await ensureDefaultChatRoom();
 		await setAllUsersOffline();
 		log.info('Server initialized successfully');
 	})
@@ -49,6 +48,29 @@ Promise.resolve()
 
 export const handle: Handle = async ({ event, resolve }) => {
 	log.debug('Handling request', { path: event.url.pathname });
+
+	// CSRF protection: validate Origin header for state-changing requests
+	if (event.request.method !== 'GET' && event.request.method !== 'HEAD') {
+		const origin = event.request.headers.get('origin');
+		const host = event.request.headers.get('host');
+
+		// Block cross-origin requests (origin header is present but doesn't match host)
+		if (origin) {
+			try {
+				const originUrl = new URL(origin);
+				if (originUrl.host !== host) {
+					log.warn('CSRF check failed - origin mismatch', {
+						origin: originUrl.host,
+						host
+					});
+					return new Response('Forbidden', { status: 403 });
+				}
+			} catch {
+				log.warn('CSRF check failed - invalid origin', { origin });
+				return new Response('Forbidden', { status: 403 });
+			}
+		}
+	}
 
 	// Get session token from cookies
 	const token = event.cookies.get('session') ?? null;

@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { chatState } from '../states/chat.svelte';
+	import { useQuery } from 'convex-svelte';
+	import { api } from '../../convex/_generated/api';
+	import type { Id } from '../../convex/_generated/dataModel';
 	import type { Message, EnrichedMessage, SafeUser } from '../types/chat';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
@@ -22,63 +25,236 @@
 	import { loadWindowState, saveWindowState, debounce } from '$lib/utils/chat-window-state';
 	import { MAX_MESSAGE_LENGTH } from '$lib/validation/message';
 
-	// Props destructuring must come first
+	// Props
 	let { showChatRoom = $bindable(), initialTextStyle = DEFAULT_TEXT_STYLE } = $props();
 
-	// Initialize with default values for SSR (800x600 - 16:10 aspect ratio)
+	// ============ CONVEX REAL-TIME SUBSCRIPTIONS ============
+
+	// Subscribe to default room (to get room ID)
+	const defaultRoomQuery = useQuery(api.queries.getDefaultRoomPublic, {});
+
+	// Subscribe to users (buddy list) - real-time updates
+	const usersQuery = useQuery(api.queries.getUsersPublic, {});
+
+	// Room ID from Convex query
+	const roomId = $derived(defaultRoomQuery.data?.id as Id<'chatRooms'> | undefined);
+
+	// Subscribe to messages - only when room ID is available
+	const messagesQuery = $derived(
+		roomId ? useQuery(api.queries.getMessagesPublic, () => ({ roomId: roomId!, limit: 100 })) : null
+	);
+
+	// Transform Convex users to SafeUser format
+	const onlineUsers = $derived.by<SafeUser[]>(() => {
+		if (!usersQuery.data) return [];
+		return usersQuery.data
+			.map((u) => ({
+				id: u.id,
+				nickname: u.nickname,
+				status: u.status as SafeUser['status'],
+				avatarUrl: u.avatarUrl ?? null,
+				lastSeen: u.lastSeen ?? null
+			}))
+			.sort((a, b) => {
+				const statusOrder: Record<string, number> = { online: 0, away: 1, busy: 2, offline: 3 };
+				return (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
+			});
+	});
+
+	// Transform Convex messages to EnrichedMessage format
+	const messages = $derived.by<EnrichedMessage[]>(() => {
+		if (!messagesQuery?.data) return [];
+		return messagesQuery.data.map((msg) => ({
+			id: msg.id,
+			chatRoomId: msg.chatRoomId,
+			senderId: msg.senderId,
+			content: msg.content,
+			type: msg.type as Message['type'],
+			timestamp: msg.timestamp,
+			styleData: msg.styleData,
+			hasFormatting: msg.hasFormatting ?? false,
+			user: msg.sender
+				? {
+						id: msg.sender.id,
+						nickname: msg.sender.nickname,
+						status: msg.sender.status as SafeUser['status'],
+						avatarUrl: msg.sender.avatarUrl ?? null,
+						lastSeen: null
+					}
+				: {
+						id: msg.senderId,
+						nickname: 'Unknown User',
+						status: 'offline' as const,
+						avatarUrl: null,
+						lastSeen: null
+					}
+		}));
+	});
+
+	// Messages loaded via pagination (older history)
+	let pagedMessages = $state<Message[]>([]);
+
+	// Merge paginated messages with live subscription data
+	const allMessages = $derived.by<EnrichedMessage[]>(() => {
+		// Using object for deduplication (avoiding Map for svelte reactivity compliance)
+		const merged: Record<string, EnrichedMessage> = {};
+		for (const msg of pagedMessages) {
+			merged[msg.id] = enrichMessage(msg);
+		}
+		for (const msg of messages) {
+			merged[msg.id] = msg;
+		}
+		return Object.values(merged).sort((a, b) => a.timestamp - b.timestamp);
+	});
+
+	// Loading and error states from Convex
+	const isInitialLoading = $derived(
+		defaultRoomQuery.isLoading || usersQuery.isLoading || messagesQuery?.isLoading
+	);
+	const connectionError = $derived.by<string | null>(() => {
+		if (defaultRoomQuery.error) return 'Erreur de connexion au salon';
+		if (usersQuery.error) return 'Erreur de chargement des utilisateurs';
+		if (messagesQuery?.error) return 'Erreur de chargement des messages';
+		return null;
+	});
+
+	// Update chatState with room ID when available
+	$effect(() => {
+		if (roomId) {
+			chatState.setCurrentRoomId(roomId);
+			chatState.setConnectionStatus('connected');
+		}
+	});
+
+	// ============ USER STATE ============
+
+	const currentUser = $derived(chatState.getCurrentUser());
+
+	// ============ WINDOW STATE ============
+
 	let windowWidth = $state(800);
 	let windowHeight = $state(600);
 	let windowX = $state(0);
 	let windowY = $state(0);
 	let isMobile = $state(false);
-	let currentMessage = $state('');
 	let showUserList = $state(false);
 	let isMaximized = $state(false);
-	let isInitialLoading = $state(true);
-	let showAuth = $state(false);
 	let isMinimized = $state(false);
-	let isCentered = $state(true); // true = window stays centered on resize, false = user has manually positioned
-	let inputScrollLeft = $state(0); // Track input scroll position for gradient overlay sync
+	let isCentered = $state(true);
 
-	// Handle input changes - truncate and sync scroll
-	function handleInputChange(e: Event) {
-		const input = e.target as HTMLInputElement;
-		// Truncate if over limit (handles paste)
-		if (input.value.length > MAX_MESSAGE_LENGTH) {
-			input.value = input.value.slice(0, MAX_MESSAGE_LENGTH);
-			currentMessage = input.value;
-		}
-		// Sync scroll position for gradient overlay
-		inputScrollLeft = input.scrollLeft;
-	}
+	// ============ INPUT STATE ============
 
-	function handleInputScroll(e: Event) {
-		const input = e.target as HTMLInputElement;
-		inputScrollLeft = input.scrollLeft;
-	}
-
-	// Text formatting state - initialize directly with merged initial style
+	let currentMessage = $state('');
+	let inputScrollLeft = $state(0);
 	let currentTextStyle = $state<TextStyle>({
 		...DEFAULT_TEXT_STYLE,
 		...initialTextStyle,
 		color: initialTextStyle.color || '#000000'
 	});
 
-	// Rate limiting state
+	// ============ RATE LIMITING STATE ============
+
 	let cooldownEndTime = $state<number | null>(null);
 	let cooldownProgress = $state(0);
 	let cooldownInterval: ReturnType<typeof setInterval> | null = null;
 	let rateLimitWarning = $state<string | null>(null);
+	let isSendingMessage = $state(false);
 
-	// At the top along with other variable declarations, add:
-	let roomPollInterval: ReturnType<typeof setInterval> | null = null;
+	// ============ AUTH STATE ============
 
-	// Debounced save function for window state persistence
+	let showAuth = $state(false);
+
+	// ============ SCROLL STATE ============
+
+	let isLoadingMore = $state(false);
+	let hasMoreMessages = $state(true);
+	let oldestMessageTimestamp = $state<number | null>(null);
+	let lastMessageCount = $state(0);
+
+	// ============ DERIVED STATE ============
+
+	// Visible messages (limit for non-logged-in users)
+	const visibleMessages = $derived.by<EnrichedMessage[]>(() => {
+		const isLoggedIn = Boolean(currentUser);
+		return isLoggedIn ? allMessages : allMessages.slice(Math.max(0, allMessages.length - 50));
+	});
+
+	// Show registration prompt for non-logged-in users
+	const showRegistrationPrompt = $derived(!currentUser && allMessages.length > 50);
+
+	// Character counter
+	const CHAR_WARNING_THRESHOLD = Math.floor(MAX_MESSAGE_LENGTH * 0.8);
+	const showCharCounter = $derived(currentMessage.length >= CHAR_WARNING_THRESHOLD);
+	const charCounterClass = $derived(
+		currentMessage.length >= MAX_MESSAGE_LENGTH
+			? 'at-limit'
+			: currentMessage.length >= MAX_MESSAGE_LENGTH * 0.95
+				? 'near-limit'
+				: 'warning'
+	);
+
+	// User counts
+	const totalUsers = $derived(onlineUsers.length);
+	const usersOnline = $derived(onlineUsers.filter((u) => u.status !== 'offline'));
+	const usersOffline = $derived(onlineUsers.filter((u) => u.status === 'offline'));
+
+	// ============ EFFECTS ============
+
+	// Auto-scroll to bottom when new messages arrive
+	$effect(() => {
+		if (messages.length > lastMessageCount && messages.length > 0) {
+			lastMessageCount = messages.length;
+			if (browser) {
+				const chatArea = document.querySelector('.chat-area');
+				if (chatArea) {
+					setTimeout(() => {
+						chatArea.scrollTop = chatArea.scrollHeight;
+					}, 0);
+				}
+			}
+		}
+	});
+
+	// Update oldest timestamp for pagination
+	$effect(() => {
+		if (allMessages.length > 0) {
+			oldestMessageTimestamp = Math.min(...allMessages.map((m) => m.timestamp));
+		}
+	});
+
+	// ============ HELPERS ============
+
+	function resolveUser(senderId: string): SafeUser {
+		const knownUser = onlineUsers.find((user) => user.id === senderId);
+		if (knownUser) return knownUser;
+		return {
+			id: senderId,
+			nickname: 'Unknown User',
+			status: 'offline',
+			avatarUrl: null,
+			lastSeen: null
+		};
+	}
+
+	function enrichMessage(message: Message): EnrichedMessage {
+		return {
+			...message,
+			user: resolveUser(message.senderId)
+		};
+	}
+
+	function mergePagedMessages(incoming: Message[]) {
+		if (incoming.length === 0) return;
+		const existingIds = new Set(pagedMessages.map((message) => message.id));
+		const newMessages = incoming.filter((message) => !existingIds.has(message.id));
+		if (newMessages.length === 0) return;
+		pagedMessages = [...pagedMessages, ...newMessages];
+	}
+
 	const debouncedSaveWindowState = debounce(saveWindowState, 300);
 
 	function updateCooldownProgress() {
 		if (!cooldownEndTime) return;
-
 		const now = Date.now();
 		if (now >= cooldownEndTime) {
 			cooldownEndTime = null;
@@ -90,7 +266,6 @@
 			}
 			return;
 		}
-
 		cooldownProgress = (cooldownEndTime - now) / 1000;
 	}
 
@@ -101,283 +276,50 @@
 		updateCooldownProgress();
 	}
 
+	// ============ HANDLERS ============
+
 	function handleClose() {
 		showChatRoom = false;
 	}
 
-	// Reactive state using derived values
-	let messages = $state<EnrichedMessage[]>([]);
-	let onlineUsers = $state<SafeUser[]>([]);
-	let currentUser = $state<SafeUser | null>(null);
-	let isLoadingMore = $state(false);
-	let hasMoreMessages = $state(true);
-	let oldestMessageTimestamp = $state<number | null>(null);
-	let currentRoomId = $state('');
-
-	// Compute visible messages based on login status
-	let visibleMessages = $derived(
-		(() => {
-			const isLoggedIn = Boolean(currentUser);
-			const messageCount = messages.length;
-			const result: EnrichedMessage[] = isLoggedIn
-				? messages
-				: messages.slice(Math.max(0, messageCount - 50));
-			return result;
-		})()
-	);
-
-	// Add a derived state to check if we're showing the registration prompt
-	let showRegistrationPrompt = $derived(!currentUser && messages.length > 50);
-
-	// Character counter - show when approaching limit (80%+)
-	const CHAR_WARNING_THRESHOLD = Math.floor(MAX_MESSAGE_LENGTH * 0.8); // 400 chars
-	let showCharCounter = $derived(currentMessage.length >= CHAR_WARNING_THRESHOLD);
-	let charCounterClass = $derived(
-		currentMessage.length >= MAX_MESSAGE_LENGTH
-			? 'at-limit'
-			: currentMessage.length >= MAX_MESSAGE_LENGTH * 0.95
-				? 'near-limit'
-				: 'warning'
-	);
-
-	// Add SSE error state
-	let sseError = $state<string | null>(null);
-	let sseRetryAfter = $state<number | null>(null);
-
-	// Update the effect to check for SSE errors
-	$effect(() => {
-		const user = chatState.getCurrentUser();
-		if (user?.id !== currentUser?.id) {
-			currentUser = user;
-			hasMoreMessages = true; // Reset when user changes
+	function handleInputChange(e: Event) {
+		const input = e.target as HTMLInputElement;
+		if (input.value.length > MAX_MESSAGE_LENGTH) {
+			input.value = input.value.slice(0, MAX_MESSAGE_LENGTH);
+			currentMessage = input.value;
 		}
+		inputScrollLeft = input.scrollLeft;
+	}
 
-		// Check for SSE errors
-		const { error, retryAfter } = chatState.getSSEError();
-		sseError = error;
-		sseRetryAfter = retryAfter;
-
-		// Update messages if there's any difference
-		const stateMessages = chatState.getMessages();
-		if (JSON.stringify(stateMessages) !== JSON.stringify(messages)) {
-			messages = stateMessages;
-
-			// Update oldest message timestamp
-			if (messages.length > 0) {
-				oldestMessageTimestamp = Math.min(...messages.map((m) => m.timestamp));
-			}
-
-			// Scroll to bottom when new messages arrive
-			const chatArea = document.querySelector('.chat-area');
-			if (chatArea) {
-				setTimeout(() => {
-					chatArea.scrollTop = chatArea.scrollHeight;
-				}, 0);
-			}
-		}
-
-		// Update online users
-		const stateOnlineUsers = chatState.getOnlineUsers();
-		if (JSON.stringify(stateOnlineUsers) !== JSON.stringify(onlineUsers)) {
-			onlineUsers = stateOnlineUsers;
-		}
-	});
-
-	// Fetch public messages only once when needed
-	let fetchedPublicMessages = false;
-	let fetchedPublicRoom = false;
-
-	$effect(() => {
-		if (!currentUser) {
-			// Fetch both public room data and messages in parallel but handle them in sequence
-			if (!fetchedPublicRoom && !fetchedPublicMessages) {
-				fetchedPublicRoom = true;
-				fetchedPublicMessages = true;
-
-				// Get the default chat room id
-				const defaultRoomId = chatState.getDefaultChatRoomId();
-
-				// Fetch both in parallel
-				Promise.all([
-					fetch(`/api/rooms/${defaultRoomId}?public=true`).then((r) => r.json()),
-					fetch('/api/chat/messages?public=true').then((r) => r.json())
-				])
-					.then(([roomData, messagesData]) => {
-						if (roomData.success) {
-							// Update both the chat state and local state with the buddy list
-							chatState.updateOnlineUsers(roomData.buddyList);
-							onlineUsers = roomData.buddyList;
-							console.debug('Updated public buddy list:', roomData.buddyList);
-						}
-
-						// Then update messages after buddy list is cached
-						if (messagesData.success && messagesData.messages) {
-							chatState.updateMessages(messagesData.messages);
-							messages = chatState.enrichMessages(messagesData.messages);
-							console.debug('Updated public messages:', messages);
-						}
-					})
-					.catch((error) => {
-						console.error('Error fetching public data:', error);
-						onlineUsers = [];
-						messages = [];
-					});
-			}
-		}
-	});
-
-	onMount(() => {
-		if (!browser) return;
-
-		// Detect mobile first
-		isMobile = window.innerWidth <= 768;
-
-		// Load saved state from localStorage (only for desktop)
-		if (!isMobile) {
-			const savedState = loadWindowState();
-			// Only apply saved position/size if they're within current viewport bounds
-			const maxWidth = window.innerWidth - 40;
-			const maxHeight = window.innerHeight - 40;
-
-			windowWidth = Math.min(savedState.width, maxWidth);
-			windowHeight = Math.min(savedState.height, maxHeight);
-
-			// Handle centering: if x or y is -1, center the window
-			if (savedState.x === -1) {
-				windowX = Math.max(0, (window.innerWidth - windowWidth) / 2);
-			} else {
-				windowX = Math.max(0, Math.min(savedState.x, window.innerWidth - windowWidth));
-			}
-			if (savedState.y === -1) {
-				windowY = Math.max(0, (window.innerHeight - windowHeight) / 2);
-			} else {
-				windowY = Math.max(0, Math.min(savedState.y, window.innerHeight - windowHeight));
-			}
-
-			isMaximized = savedState.isMaximized;
-			isMinimized = savedState.isMinimized;
-			showUserList = savedState.showUserList;
-			isCentered = savedState.isCentered;
-		}
-
-		const handleResize = () => {
-			const wasMobile = isMobile;
-			isMobile = window.innerWidth <= 768;
-			if (isMobile) {
-				windowWidth = window.innerWidth;
-				windowHeight = window.innerHeight;
-				windowX = 0;
-				windowY = 0;
-			} else if (wasMobile && !isMobile) {
-				// Switching from mobile to desktop - reload saved state
-				const savedState = loadWindowState();
-				const maxWidth = window.innerWidth - 40;
-				const maxHeight = window.innerHeight - 40;
-				windowWidth = Math.min(savedState.width, maxWidth);
-				windowHeight = Math.min(savedState.height, maxHeight);
-
-				// Handle centering
-				if (savedState.x === -1) {
-					windowX = Math.max(0, (window.innerWidth - windowWidth) / 2);
-				} else {
-					windowX = Math.max(0, Math.min(savedState.x, window.innerWidth - windowWidth));
-				}
-				if (savedState.y === -1) {
-					windowY = Math.max(0, (window.innerHeight - windowHeight) / 2);
-				} else {
-					windowY = Math.max(0, Math.min(savedState.y, window.innerHeight - windowHeight));
-				}
-			} else if (!isMobile) {
-				// Desktop viewport changed (zoom in/out) - re-center if isCentered, otherwise keep in bounds
-				const maxWidth = window.innerWidth - 40;
-				const maxHeight = window.innerHeight - 40;
-				windowWidth = Math.min(windowWidth, maxWidth);
-				windowHeight = Math.min(windowHeight, maxHeight);
-
-				if (isCentered) {
-					// Keep window centered
-					windowX = Math.max(0, (window.innerWidth - windowWidth) / 2);
-					windowY = Math.max(0, (window.innerHeight - windowHeight) / 2);
-				} else {
-					// Just keep window within bounds
-					windowX = Math.max(0, Math.min(windowX, window.innerWidth - windowWidth));
-					windowY = Math.max(0, Math.min(windowY, window.innerHeight - windowHeight));
-				}
-			}
-		};
-
-		// Only run handleResize if on mobile (desktop already loaded from localStorage)
-		if (isMobile) {
-			handleResize();
-		}
-
-		// Add resize listener
-		window.addEventListener('resize', handleResize);
-
-		// ---- New: Polling for public buddy list updates ----
-		if (!currentUser) {
-			const fetchPublicRoom = async () => {
-				const defaultRoomId = chatState.getDefaultChatRoomId();
-				try {
-					const response = await fetch(`/api/rooms/${defaultRoomId}?public=true`);
-					if (response.ok) {
-						const roomData = await response.json();
-						if (roomData.success && roomData.buddyList) {
-							// Update both chat state and local onlineUsers list
-							chatState.updateOnlineUsers(roomData.buddyList);
-							onlineUsers = roomData.buddyList;
-							console.debug('Public polling updated buddy list:', roomData.buddyList);
-						}
-					}
-				} catch (error) {
-					console.error('Error fetching public buddy list:', error);
-				}
-			};
-
-			// Initial fetch then poll every 30 seconds
-			fetchPublicRoom();
-			roomPollInterval = setInterval(fetchPublicRoom, 30000);
-		}
-		// -------------------------------------------------------
-
-		return () => {
-			window.removeEventListener('resize', handleResize);
-			if (cooldownInterval) clearInterval(cooldownInterval);
-			if (roomPollInterval) clearInterval(roomPollInterval);
-		};
-	});
-
-	// Save window state to localStorage when it changes (desktop only)
-	$effect(() => {
-		if (!browser || isMobile) return;
-
-		// Save current state (debounced)
-		debouncedSaveWindowState({
-			width: windowWidth,
-			height: windowHeight,
-			x: windowX,
-			y: windowY,
-			isMaximized,
-			isMinimized,
-			showUserList,
-			isCentered
-		});
-	});
-
-	// New reactive state to track when a message is being sent
-	let isSendingMessage = $state(false);
+	function handleInputScroll(e: Event) {
+		inputScrollLeft = (e.target as HTMLInputElement).scrollLeft;
+	}
 
 	async function handleSubmit() {
 		if (!currentMessage.trim() || !currentUser || cooldownEndTime) return;
 
 		isSendingMessage = true;
 		try {
-			const response = await chatState.sendMessage(currentMessage, 'chat', currentTextStyle);
-			if (!response.success && response.isRateLimited && response.retryAfter) {
-				startCooldownTimer(response.retryAfter);
+			const response = await fetch('/api/chat/messages', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({
+					content: currentMessage,
+					type: 'chat',
+					userId: currentUser.id,
+					chatRoomId: roomId,
+					styleData: currentTextStyle ? JSON.stringify(currentTextStyle) : undefined
+				})
+			});
+
+			const data = await response.json();
+
+			if (!data.success && data.isRateLimited && data.retryAfter) {
+				startCooldownTimer(data.retryAfter);
 				rateLimitWarning = "Whoa there! You're sending messages too quickly. Take a breather...";
-			} else if (!response.success) {
-				rateLimitWarning = response.error || 'Failed to send message. Please try again.';
+			} else if (!data.success) {
+				rateLimitWarning = data.error || 'Failed to send message. Please try again.';
 				setTimeout(() => (rateLimitWarning = null), 3000);
 			} else {
 				currentMessage = '';
@@ -395,7 +337,6 @@
 	function handleDragMove(event: CustomEvent<{ x: number; y: number }>) {
 		windowX = event.detail.x;
 		windowY = event.detail.y;
-		// User manually moved the window, no longer keep it centered on resize
 		isCentered = false;
 	}
 
@@ -406,16 +347,12 @@
 	function handleMaximize(event: MouseEvent) {
 		const node = (event.currentTarget as HTMLElement).closest('.window') as MaximizableNode;
 		if (node) {
-			// If minimized, restore first
 			if (isMinimized) {
 				const minimizableNode = node as unknown as MinimizableNode;
 				if (minimizableNode?.toggleMinimize) {
 					minimizableNode.toggleMinimize();
 				}
-				// Wait for minimize animation to complete
-				setTimeout(() => {
-					node.toggleMaximize();
-				}, 300);
+				setTimeout(() => node.toggleMaximize(), 300);
 			} else {
 				node.toggleMaximize();
 			}
@@ -446,28 +383,21 @@
 		const chatArea = event.target as HTMLElement;
 		const { scrollTop } = chatArea;
 
-		// Check if we've scrolled near the top (within 100px) and not already loading
-		if (scrollTop < 100 && !isLoadingMore && hasMoreMessages) {
+		if (scrollTop < 100 && !isLoadingMore && hasMoreMessages && roomId) {
 			isLoadingMore = true;
-
-			// Store the scroll height and position before loading
 			const scrollHeight = chatArea.scrollHeight;
 			const currentScrollTop = chatArea.scrollTop;
 
-			console.debug('Loading more messages...', {
-				oldestMessageTimestamp,
-				scrollHeight,
-				currentScrollTop
-			});
-
 			try {
-				const response = await fetch(
-					`/api/chat/messages?${new URLSearchParams({
-						before: oldestMessageTimestamp?.toString() || '',
-						roomId: currentRoomId,
-						...(currentUser ? {} : { public: 'true' })
-					})}`
-				);
+				// Build query string manually to avoid URLSearchParams (svelte reactivity compliance)
+				const queryParts = [
+					`before=${encodeURIComponent(oldestMessageTimestamp?.toString() || '')}`,
+					`roomId=${encodeURIComponent(roomId)}`
+				];
+				if (!currentUser) queryParts.push('public=true');
+				const queryString = queryParts.join('&');
+
+				const response = await fetch(`/api/chat/messages?${queryString}`);
 
 				if (response.ok) {
 					const data = await response.json();
@@ -475,30 +405,19 @@
 						if (data.messages.length === 0) {
 							hasMoreMessages = false;
 						} else {
-							// Update messages through chat state
-							chatState.prependMessages(data.messages, data.hasMore);
+							const fetchedMessages = data.messages as Message[];
+							mergePagedMessages(fetchedMessages);
 
-							// Use requestAnimationFrame to ensure DOM has updated
 							requestAnimationFrame(() => {
-								// Calculate how much the content height has increased
 								const newScrollHeight = chatArea.scrollHeight;
 								const heightDifference = newScrollHeight - scrollHeight;
-
-								// Adjust scroll position to maintain relative position
 								chatArea.scrollTop = currentScrollTop + heightDifference;
-
-								console.debug('Scroll position adjusted:', {
-									heightDifference,
-									newScrollTop: chatArea.scrollTop,
-									newScrollHeight
-								});
 							});
 
-							// Update oldest timestamp
-							const newOldest = Math.min(...data.messages.map((m: Message) => m.timestamp));
-							oldestMessageTimestamp = newOldest;
-
-							// Update hasMoreMessages from response
+							const newOldest = Math.min(...fetchedMessages.map((m) => m.timestamp));
+							oldestMessageTimestamp = oldestMessageTimestamp
+								? Math.min(oldestMessageTimestamp, newOldest)
+								: newOldest;
 							hasMoreMessages = data.hasMore;
 						}
 					}
@@ -512,21 +431,6 @@
 		}
 	}
 
-	// Add effect to track initial loading state
-	$effect(() => {
-		const stateMessages = chatState.getMessages();
-		if (stateMessages.length > 0 && isInitialLoading) {
-			isInitialLoading = false;
-		}
-	});
-
-	// Add derived state for total users count
-	let totalUsers = $derived(onlineUsers.length);
-
-	// Split users into online and offline groups
-	let usersOnline = $derived(onlineUsers.filter((u) => u.status !== 'offline'));
-	let usersOffline = $derived(onlineUsers.filter((u) => u.status === 'offline'));
-
 	function openSignup() {
 		showAuth = true;
 	}
@@ -534,6 +438,105 @@
 	function handleLoginSuccess() {
 		showAuth = false;
 	}
+
+	// ============ LIFECYCLE ============
+
+	onMount(() => {
+		if (!browser) return;
+
+		isMobile = window.innerWidth <= 768;
+
+		if (!isMobile) {
+			const savedState = loadWindowState();
+			const maxWidth = window.innerWidth - 40;
+			const maxHeight = window.innerHeight - 40;
+
+			windowWidth = Math.min(savedState.width, maxWidth);
+			windowHeight = Math.min(savedState.height, maxHeight);
+
+			if (savedState.x === -1) {
+				windowX = Math.max(0, (window.innerWidth - windowWidth) / 2);
+			} else {
+				windowX = Math.max(0, Math.min(savedState.x, window.innerWidth - windowWidth));
+			}
+			if (savedState.y === -1) {
+				windowY = Math.max(0, (window.innerHeight - windowHeight) / 2);
+			} else {
+				windowY = Math.max(0, Math.min(savedState.y, window.innerHeight - windowHeight));
+			}
+
+			isMaximized = savedState.isMaximized;
+			isMinimized = savedState.isMinimized;
+			showUserList = savedState.showUserList;
+			isCentered = savedState.isCentered;
+		}
+
+		const handleResize = () => {
+			const wasMobile = isMobile;
+			isMobile = window.innerWidth <= 768;
+
+			if (isMobile) {
+				windowWidth = window.innerWidth;
+				windowHeight = window.innerHeight;
+				windowX = 0;
+				windowY = 0;
+			} else if (wasMobile && !isMobile) {
+				const savedState = loadWindowState();
+				const maxWidth = window.innerWidth - 40;
+				const maxHeight = window.innerHeight - 40;
+				windowWidth = Math.min(savedState.width, maxWidth);
+				windowHeight = Math.min(savedState.height, maxHeight);
+
+				if (savedState.x === -1) {
+					windowX = Math.max(0, (window.innerWidth - windowWidth) / 2);
+				} else {
+					windowX = Math.max(0, Math.min(savedState.x, window.innerWidth - windowWidth));
+				}
+				if (savedState.y === -1) {
+					windowY = Math.max(0, (window.innerHeight - windowHeight) / 2);
+				} else {
+					windowY = Math.max(0, Math.min(savedState.y, window.innerHeight - windowHeight));
+				}
+			} else if (!isMobile) {
+				const maxWidth = window.innerWidth - 40;
+				const maxHeight = window.innerHeight - 40;
+				windowWidth = Math.min(windowWidth, maxWidth);
+				windowHeight = Math.min(windowHeight, maxHeight);
+
+				if (isCentered) {
+					windowX = Math.max(0, (window.innerWidth - windowWidth) / 2);
+					windowY = Math.max(0, (window.innerHeight - windowHeight) / 2);
+				} else {
+					windowX = Math.max(0, Math.min(windowX, window.innerWidth - windowWidth));
+					windowY = Math.max(0, Math.min(windowY, window.innerHeight - windowHeight));
+				}
+			}
+		};
+
+		if (isMobile) handleResize();
+
+		window.addEventListener('resize', handleResize);
+
+		return () => {
+			window.removeEventListener('resize', handleResize);
+			if (cooldownInterval) clearInterval(cooldownInterval);
+		};
+	});
+
+	// Save window state when it changes
+	$effect(() => {
+		if (!browser || isMobile) return;
+		debouncedSaveWindowState({
+			width: windowWidth,
+			height: windowHeight,
+			x: windowX,
+			y: windowY,
+			isMaximized,
+			isMinimized,
+			showUserList,
+			isCentered
+		});
+	});
 </script>
 
 {#if showChatRoom}
@@ -567,8 +570,8 @@
 				Pdr Aim {#if currentUser}
 					- {currentUser.nickname}{:else}
 					- {totalUsers} membre{totalUsers > 1 ? 's' : ''}{/if}
-				{#if sseError && !isMinimized}
-					<span class="connection-error">⚠️ Erreur de connexion</span>
+				{#if connectionError && !isMinimized}
+					<span class="connection-error">⚠️ {connectionError}</span>
 				{/if}
 			</div>
 			<div class="title-bar-controls">
@@ -612,13 +615,9 @@
 				class="window-body"
 				style="display: flex; height: calc(100% - 2rem); margin: 0; padding: 0.5rem;"
 			>
-				{#if sseError}
+				{#if connectionError}
 					<div class="error-banner">
-						{sseError}
-						{#if sseRetryAfter}
-							<br />
-							<small>Nouvelle tentative dans {Math.ceil(sseRetryAfter)}s...</small>
-						{/if}
+						{connectionError}
 					</div>
 				{/if}
 
@@ -896,7 +895,6 @@
 		line-height: 1.4;
 	}
 
-	/* Fix gradient text alignment in messages */
 	.message :global(.gradient-text-static) {
 		display: inline;
 		vertical-align: baseline;
@@ -923,7 +921,6 @@
 		vertical-align: baseline;
 	}
 
-	/* Ensure formatted message content aligns properly with nickname */
 	.message-content :global(.formatted-message),
 	.message-content :global(.gradient-text-static) {
 		display: inline;
@@ -975,15 +972,6 @@
 		cursor: help;
 	}
 
-	/* .user .status-message {
-    font-size: 0.875rem;
-    color: #666;
-    font-style: italic;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  } */
-
 	.sunken-panel {
 		background: white;
 		border: 0.125rem inset #dfdfdf;
@@ -994,9 +982,7 @@
 		margin-right: 0.25rem;
 	}
 
-	/* Styled input - font is controlled by retro-font-* classes */
 	.styled-input {
-		/* Font family is set by retro-font-* classes, don't override here */
 		font-style: inherit;
 	}
 
@@ -1132,7 +1118,6 @@
 		position: relative;
 	}
 
-	/* Character counter styles */
 	.char-counter {
 		font-size: 0.75rem;
 		padding: 0 0.25rem;

@@ -45,11 +45,19 @@
 
 	// Save preferences
 	async function savePreferences() {
-		if (!onSave) return;
-
 		isSaving = true;
 		try {
-			await onSave(preferences);
+			const response = await fetch('/api/user/text-preferences', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(preferences)
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to save preferences');
+			}
+
+			await onSave?.(preferences);
 			showModal = false;
 		} catch (error) {
 			console.error('Failed to save preferences:', error);

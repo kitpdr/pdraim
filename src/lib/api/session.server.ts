@@ -1,7 +1,5 @@
-import db from '../db/db.server';
-import { sessions, users } from '../db/schema';
-import { eq } from 'drizzle-orm';
-import type { Session, User } from '../types/chat';
+import { sessions } from '../db/convex.server';
+import type { Session, SafeUser } from '../types/chat';
 import { createLogger } from '../utils/logger.server';
 
 const log = createLogger('session-server');
@@ -17,7 +15,6 @@ export async function sha256(message: string): Promise<string> {
 }
 
 // Helper: Custom Base32 encoder using the standard alphabet.
-// We use this instead of @oslojs/encoding given Cloudflare Pages compatibility.
 const base32Alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 function base32Encode(data: Uint8Array): string {
 	let bits = 0;
@@ -44,7 +41,7 @@ export function generateSessionToken(): string {
 	const randomBytesArray = new Uint8Array(20);
 	crypto.getRandomValues(randomBytesArray);
 	const token = base32Encode(randomBytesArray);
-	log.debug('Generated session token', { token });
+	log.debug('Generated session token', { tokenPrefix: token.slice(0, 4) + '***' });
 	return token;
 }
 
@@ -52,65 +49,59 @@ export function generateSessionToken(): string {
 // The session ID is the SHA-256 hash of the token.
 export async function createSession(token: string, userId: string): Promise<Session> {
 	log.debug('Creating session', { userId });
-	const sessionId = await sha256(token);
+	const tokenHash = await sha256(token);
 	const createdAt = Date.now();
 	const expiresAt = createdAt + 7 * 24 * 60 * 60 * 1000; // 7 days expiry
-	await db.insert(sessions).values({
-		id: sessionId,
-		userId,
-		createdAt,
-		expiresAt
-	});
-	log.debug('Session created', { sessionId });
-	return { id: sessionId, userId, createdAt, expiresAt };
+
+	await sessions.create(tokenHash, userId, expiresAt);
+
+	log.debug('Session created', { tokenHash });
+	return { id: tokenHash, userId, createdAt, expiresAt };
 }
 
 /**
  * Type distributed through our API.
  * Returns an object with both session and user if valid, or nulls if not.
- * Note: This returns the full User type since it's used server-side in hooks.
  */
 export type SessionValidationResult =
-	| { session: Session; user: User }
+	| { session: Session; user: SafeUser }
 	| { session: null; user: null };
 
-// Validate a session token by converting it to its SHA‑256 hash, checking expiration, and fetching the user.
+// Validate a session token by converting it to its SHA-256 hash, checking expiration, and fetching the user.
 export async function validateSessionToken(token: string): Promise<SessionValidationResult> {
 	log.debug('Validating session token');
-	const sessionId = await sha256(token);
-	const session = await db.query.sessions.findFirst({
-		where: eq(sessions.id, sessionId)
-	});
-	if (!session) {
-		log.debug('Session not found', { sessionId });
+	const tokenHash = await sha256(token);
+
+	const result = await sessions.validate(tokenHash);
+
+	if (!result.session || !result.user) {
+		log.debug('Session not found or invalid', { tokenHash });
 		return { session: null, user: null };
 	}
-	const now = Date.now();
-	if (session.expiresAt < now) {
-		log.debug('Session expired', { sessionId });
-		return { session: null, user: null };
-	}
-	const user = await db.query.users.findFirst({
-		where: eq(users.id, session.userId)
-	});
-	if (!user) {
-		log.debug('User not found for session', { sessionId });
-		return { session: null, user: null };
-	}
-	log.debug('Session validated', { sessionId, userId: user.id });
+
+	// Map Convex types to our local types - using native Convex IDs
+	const session: Session = {
+		id: result.session.tokenHash,
+		userId: result.user._id,
+		createdAt: result.session.createdAt,
+		expiresAt: result.session.expiresAt
+	};
+
+	const user: SafeUser = {
+		id: result.user._id,
+		nickname: result.user.nickname,
+		status: result.user.status as SafeUser['status'],
+		avatarUrl: result.user.avatarUrl,
+		lastSeen: result.user.lastSeen
+	};
+
+	log.debug('Session validated', { tokenHash, userId: user.id });
 	return { session, user };
 }
 
 // Invalidate a specific session by deleting it from the database.
-export async function invalidateSession(sessionId: string): Promise<void> {
-	log.debug('Invalidating session', { sessionId });
-	await db.delete(sessions).where(eq(sessions.id, sessionId));
-	log.debug('Session invalidated', { sessionId });
-}
-
-// Invalidate all sessions for a given user.
-export async function invalidateAllSessions(userId: string): Promise<void> {
-	log.debug('Invalidating all sessions for user', { userId });
-	await db.delete(sessions).where(eq(sessions.userId, userId));
-	log.debug('All sessions invalidated', { userId });
+export async function invalidateSession(tokenHash: string): Promise<void> {
+	log.debug('Invalidating session', { tokenHash });
+	await sessions.remove(tokenHash);
+	log.debug('Session invalidated', { tokenHash });
 }
