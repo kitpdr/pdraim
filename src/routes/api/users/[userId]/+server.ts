@@ -1,7 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import db from '$lib/db/db.server';
-import { users } from '$lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { users } from '$lib/db/convex.server';
 import type { RequestHandler } from './$types';
 import { createSafeUser } from '$lib/types/chat';
 import { createLogger } from '$lib/utils/logger.server';
@@ -13,14 +11,20 @@ export const GET: RequestHandler = async ({ params }) => {
 	log.debug('Fetching user data', { userId: maskedUserId });
 
 	try {
-		const user = await db.select().from(users).where(eq(users.id, params.userId)).get();
+		const user = await users.getById(params.userId);
 
 		if (!user) {
 			log.warn('User not found', { userId: maskedUserId });
 			throw error(404, 'User not found');
 		}
 
-		const safeUser = createSafeUser(user);
+		const safeUser = createSafeUser({
+			id: user._id,
+			nickname: user.nickname,
+			status: user.status,
+			avatarUrl: user.avatarUrl,
+			lastSeen: user.lastSeen
+		});
 
 		log.debug('User data retrieved', {
 			userId: maskedUserId,
