@@ -33,20 +33,27 @@ async function setAllUsersOffline() {
 	}
 }
 
-// Initialize server
-Promise.resolve()
-	.then(async () => {
+// Initialize server (deferred, non-blocking for Cloudflare Workers compatibility)
+let initialized = false;
+async function initializeServer() {
+	if (initialized) return;
+	initialized = true;
+	try {
 		log.info('Initializing server...');
 		await ensureDefaultChatRoom();
 		await setAllUsersOffline();
 		log.info('Server initialized successfully');
-	})
-	.catch((error: unknown) => {
+	} catch (error: unknown) {
 		log.error('Failed to initialize server:', { error });
-		process.exit(1);
-	});
+		// Don't exit - let the server continue and retry on next request
+		initialized = false;
+	}
+}
 
 export const handle: Handle = async ({ event, resolve }) => {
+	// Lazy initialization on first request (Cloudflare Workers compatible)
+	await initializeServer();
+
 	log.debug('Handling request', { path: event.url.pathname });
 
 	// CSRF protection: validate Origin header for state-changing requests
