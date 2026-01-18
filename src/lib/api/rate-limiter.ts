@@ -41,17 +41,26 @@ const RATE_LIMITS = {
 // In-memory store for rate limiting
 const ipRequests = new Map<string, Array<{ timestamp: number }>>();
 
+// Compute max duration across all rate limits for cleanup
+const MAX_RATE_LIMIT_DURATION = Math.max(
+	RATE_LIMITS.auth.durationMs,
+	RATE_LIMITS.public.durationMs,
+	RATE_LIMITS.protected.durationMs,
+	RATE_LIMITS.sse.authenticated.durationMs,
+	RATE_LIMITS.sse.unauthenticated.durationMs
+);
+
 // Lazy cleanup: remove stale entries on each check (Cloudflare Workers don't allow setInterval at global scope)
 let lastCleanup = 0;
-const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 function cleanupStaleEntries() {
 	const now = Date.now();
-	if (now - lastCleanup < CLEANUP_INTERVAL) return;
+	// Run cleanup at most once per max duration window
+	if (now - lastCleanup < MAX_RATE_LIMIT_DURATION) return;
 	lastCleanup = now;
 
 	for (const [ip, timestamps] of ipRequests.entries()) {
-		const filtered = timestamps.filter((t) => now - t.timestamp < CLEANUP_INTERVAL);
+		const filtered = timestamps.filter((t) => now - t.timestamp < MAX_RATE_LIMIT_DURATION);
 		if (filtered.length === 0) {
 			ipRequests.delete(ip);
 		} else {
