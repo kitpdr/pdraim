@@ -96,14 +96,15 @@
 
 	// Merge paginated messages with live subscription data
 	const allMessages = $derived.by<EnrichedMessage[]>(() => {
-		const merged = new Map<string, EnrichedMessage>();
+		// Using object for deduplication (avoiding Map for svelte reactivity compliance)
+		const merged: Record<string, EnrichedMessage> = {};
 		for (const msg of pagedMessages) {
-			merged.set(msg.id, enrichMessage(msg));
+			merged[msg.id] = enrichMessage(msg);
 		}
 		for (const msg of messages) {
-			merged.set(msg.id, msg);
+			merged[msg.id] = msg;
 		}
-		return Array.from(merged.values()).sort((a, b) => a.timestamp - b.timestamp);
+		return Object.values(merged).sort((a, b) => a.timestamp - b.timestamp);
 	});
 
 	// Loading and error states from Convex
@@ -127,12 +128,7 @@
 
 	// ============ USER STATE ============
 
-	let currentUser = $state<SafeUser | null>(null);
-
-	// Sync current user from chatState
-	$effect(() => {
-		currentUser = chatState.getCurrentUser();
-	});
+	const currentUser = $derived(chatState.getCurrentUser());
 
 	// ============ WINDOW STATE ============
 
@@ -393,13 +389,15 @@
 			const currentScrollTop = chatArea.scrollTop;
 
 			try {
-				const params = new URLSearchParams({
-					before: oldestMessageTimestamp?.toString() || '',
-					roomId: roomId
-				});
-				if (!currentUser) params.append('public', 'true');
+				// Build query string manually to avoid URLSearchParams (svelte reactivity compliance)
+				const queryParts = [
+					`before=${encodeURIComponent(oldestMessageTimestamp?.toString() || '')}`,
+					`roomId=${encodeURIComponent(roomId)}`
+				];
+				if (!currentUser) queryParts.push('public=true');
+				const queryString = queryParts.join('&');
 
-				const response = await fetch(`/api/chat/messages?${params}`);
+				const response = await fetch(`/api/chat/messages?${queryString}`);
 
 				if (response.ok) {
 					const data = await response.json();

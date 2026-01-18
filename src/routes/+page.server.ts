@@ -3,8 +3,7 @@ import { validateSessionToken } from '$lib/api/session.server';
 import {
 	DEFAULT_TEXT_STYLE,
 	DEFAULT_USER_PREFERENCES,
-	type TextStyle,
-	type UserTextPreferences
+	type TextStyle
 } from '$lib/types/text-formatting';
 import convex from '$lib/db/convex.server';
 

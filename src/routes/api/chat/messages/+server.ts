@@ -1,4 +1,4 @@
-import { messages, chatRooms, users } from '$lib/db/convex.server';
+import { messages } from '$lib/db/convex.server';
 import { getDefaultChatRoomId } from '$lib/utils/chat.server';
 import type { Message } from '$lib/types/chat';
 import type { SendMessageResponse, GetMessagesResponse } from '$lib/types/payloads';
