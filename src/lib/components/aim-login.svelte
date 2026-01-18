@@ -18,18 +18,12 @@
 	let {
 		showAuth = $bindable(),
 		onLoginSuccess,
-		activeTab: initialTab = 'signin'
+		activeTab = $bindable<'signin' | 'signup'>('signin')
 	} = $props<{
 		showAuth?: boolean;
 		onLoginSuccess?: () => void;
 		activeTab?: 'signin' | 'signup';
 	}>();
-
-	let activeTab = $state<'signin' | 'signup'>('signin');
-
-	$effect(() => {
-		activeTab = initialTab;
-	});
 
 	// Sign In state
 	let siUsername = $state('');

@@ -3,6 +3,7 @@
 	import type { TextStyle } from '../types/text-formatting';
 	import { formatText, createGradientText, escapeHtml } from '../utils/text-formatter';
 	import { DEFAULT_TEXT_STYLE } from '../types/text-formatting';
+	import { highlightMentionsPlain } from '../utils/mention';
 
 	// Props
 	let { message, allowFormatting = true } = $props<{
@@ -15,19 +16,11 @@
 	let isProcessing = $state(false);
 	let hasError = $state(false);
 
-	// Apply mention highlighting to text
-	function applyMentionHighlighting(text: string): string {
-		return text.replace(
-			/(^|\s)@([a-zA-Z0-9_-]{1,32})(?=$|\s|[^a-zA-Z0-9_-])/g,
-			'$1<span class="mention-token">@$2</span>'
-		);
-	}
-
 	// Process message formatting
 	async function processMessage() {
 		if (!allowFormatting || !message.hasFormatting) {
 			// Still apply mention highlighting to plain text messages
-			formattedContent = applyMentionHighlighting(escapeHtml(message.content));
+			formattedContent = highlightMentionsPlain(escapeHtml(message.content));
 			return;
 		}
 

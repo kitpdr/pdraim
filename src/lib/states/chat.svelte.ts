@@ -27,7 +27,7 @@ class ChatState {
 	);
 
 	getMentionTotal() {
-		return Object.values(this._roomMentionCounts).reduce((sum, count) => sum + count, 0);
+		return this.mentionTotal;
 	}
 
 	/**

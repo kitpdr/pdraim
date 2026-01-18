@@ -5,6 +5,7 @@
 	import type { Id } from '../../convex/_generated/dataModel';
 	import type { Message, EnrichedMessage, SafeUser } from '../types/chat';
 	import { onMount, tick } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { browser } from '$app/environment';
 	import { draggable } from '$lib/actions/draggable';
 	import { resizable } from '$lib/actions/resizable';
@@ -16,11 +17,17 @@
 	import AimLogin from './aim-login.svelte';
 	import FormattedMessage from './formatted-message.svelte';
 	import TextFormattingToolbar from './text-formatting-toolbar.svelte';
+	import MentionPicker from './mention-picker.svelte';
 	import {
-		DEFAULT_TEXT_STYLE,
-		type TextStyle,
-		generateInputCSSStyle
-	} from '../types/text-formatting';
+		MAX_MENTION_SUGGESTIONS,
+		MENTION_PICKER,
+		findMentionContext,
+		highlightMentionsInput,
+		containsMention,
+		calculatePickerHeight,
+		calculatePickerWidth
+	} from '../utils/mention';
+	import { DEFAULT_TEXT_STYLE, type TextStyle } from '../types/text-formatting';
 	import { formatFrenchDateTime, formatFrenchRelativeTimeSafe } from '$lib/utils/date-format';
 	import { loadWindowState, saveWindowState, debounce } from '$lib/utils/chat-window-state';
 	import { MAX_MESSAGE_LENGTH } from '$lib/validation/message';
@@ -147,27 +154,20 @@
 	let currentMessage = $state('');
 	let inputScrollLeft = $state(0);
 	// Initialize text style with prop value (intentionally capturing initial value only)
-	let currentTextStyle = $state<TextStyle>(
-		(() => {
-			const style = { ...initialTextStyle };
-			return {
-				...DEFAULT_TEXT_STYLE,
-				...style,
-				color: style.color || '#000000'
-			};
-		})()
-	);
+	let currentTextStyle = $state<TextStyle>({
+		...DEFAULT_TEXT_STYLE,
+		...initialTextStyle,
+		color: initialTextStyle.color || '#000000'
+	});
 
 	// ============ MENTION STATE ============
 
-	const USERNAME_PATTERN = /^[a-zA-Z0-9_-]{1,32}$/;
-	const MAX_MENTION_SUGGESTIONS = 6;
 	let messageInput = $state<HTMLInputElement | null>(null);
 	let mentionOpen = $state(false);
 	let mentionQuery = $state('');
 	let mentionAnchorIndex = $state<number | null>(null);
 	let mentionSelectedIndex = $state(0);
-	let mentionObservedIds = new Set<string>();
+	let mentionObservedIds = $state<Set<string>>(new Set());
 	let mentionMessageIds = $state<Set<string>>(new Set());
 	let mentionUnreadCount = $state(0);
 	let mentionDismissKey = $state<string | null>(null);
@@ -177,7 +177,6 @@
 	const mentionListBoxId = `mentions-${Math.random().toString(36).slice(2, 8)}`;
 	let mentionActiveId = $state<string | null>(null);
 	let chatArea = $state<HTMLDivElement | null>(null);
-	let mentionListContainer = $state<HTMLDivElement | null>(null);
 	let mentionListStyle = $state('');
 	let mentionListInside = $state(true);
 	let mentionMeasureContext: CanvasRenderingContext2D | null = null;
@@ -232,6 +231,8 @@
 		onlineUsers.filter((user) => !currentUser || user.id !== currentUser.id)
 	);
 
+	// Filter users for mention autocomplete
+	// Empty query (just "@") shows all users to let user browse the list
 	const mentionSuggestions = $derived.by<SafeUser[]>(() => {
 		if (!mentionOpen) return [];
 		const query = mentionQuery.trim().toLowerCase();
@@ -241,8 +242,6 @@
 		return candidates.slice(0, MAX_MENTION_SUGGESTIONS);
 	});
 
-	const mentionListMaxHeight = MAX_MENTION_SUGGESTIONS * 32 + 12;
-
 	// Format input message with mention highlighting (for overlay display)
 	const formattedInputMessage = $derived.by(() => {
 		if (!currentMessage) return '';
@@ -251,11 +250,8 @@
 			.replace(/&/g, '&amp;')
 			.replace(/</g, '&lt;')
 			.replace(/>/g, '&gt;');
-		// Apply mention styling
-		return escaped.replace(
-			/(^|\s)@([a-zA-Z0-9_-]{1,32})(?=$|\s|[^a-zA-Z0-9_-])/g,
-			'$1<span class="input-mention">@$2</span>'
-		);
+		// Apply mention styling using shared utility
+		return highlightMentionsInput(escaped);
 	});
 
 	// mentionUnreadCount is managed in state updates
@@ -274,13 +270,12 @@
 	$effect(() => {
 		if (messages.length > lastMessageCount && messages.length > 0) {
 			lastMessageCount = messages.length;
-			if (browser) {
-				const chatArea = document.querySelector('.chat-area');
-				if (chatArea) {
-					setTimeout(() => {
+			if (browser && chatArea) {
+				tick().then(() => {
+					if (chatArea) {
 						chatArea.scrollTop = chatArea.scrollHeight;
-					}, 0);
-				}
+					}
+				});
 			}
 		}
 	});
@@ -309,8 +304,8 @@
 
 	$effect(() => {
 		if (!browser || !currentUser) {
-			mentionObservedIds = new Set();
-			mentionMessageIds = new Set();
+			mentionObservedIds = new SvelteSet();
+			mentionMessageIds = new SvelteSet();
 			if (mentionUnreadCount !== 0) {
 				mentionUnreadCount = 0;
 			}
@@ -321,7 +316,7 @@
 			}
 			return;
 		}
-		const mentionIds = new Set<string>();
+		const mentionIds = new SvelteSet<string>();
 		for (const message of visibleMessages) {
 			if (shouldHighlightMention(message)) {
 				mentionIds.add(message.id);
@@ -348,7 +343,7 @@
 		}
 		mentionObserver = new IntersectionObserver(
 			(entries) => {
-				const updatedObserved = new Set(mentionObservedIds);
+				const updatedObserved = new SvelteSet(mentionObservedIds);
 				let changed = false;
 				const currentObserved = mentionObservedIds;
 				const currentUnread = mentionUnreadCount;
@@ -416,10 +411,8 @@
 		const currentInside = mentionListInside;
 		const inputRect = messageInput.getBoundingClientRect();
 		const containerRect = messageInput.closest('.chat-container')?.getBoundingClientRect();
-		// Use actual height: single row for empty state, otherwise based on suggestion count
-		const listHeight = mentionSuggestions.length
-			? Math.min(mentionSuggestions.length, MAX_MENTION_SUGGESTIONS) * 32 + 12
-			: 44; // Single "Aucun utilisateur" row height
+		// Use shared utility for height calculation
+		const listHeight = calculatePickerHeight(mentionSuggestions.length);
 		const spaceBelow = containerRect
 			? containerRect.bottom - inputRect.bottom
 			: window.innerHeight - inputRect.bottom;
@@ -431,22 +424,24 @@
 		}, 0);
 		// Status uses 0.7rem (11.2px) font size and uppercase (add ~10% for letter-spacing)
 		const statusWidth = measureMentionText('OFFLINE', false, 11.2) * 1.1;
-		const paddingWidth = 68;
-		const listWidth = Math.max(220, Math.ceil(maxNameWidth + statusWidth + paddingWidth));
+		// Use shared utility for width calculation
+		const listWidth = calculatePickerWidth(maxNameWidth, statusWidth);
 		if (containerRect) {
 			if (!currentInside) mentionListInside = true;
 			const top = showAbove
-				? inputRect.top - containerRect.top - listHeight - 6
-				: inputRect.bottom - containerRect.top + 6;
+				? inputRect.top - containerRect.top - listHeight - MENTION_PICKER.OFFSET_GAP
+				: inputRect.bottom - containerRect.top + MENTION_PICKER.OFFSET_GAP;
 			const left = inputRect.left - containerRect.left;
-			const nextStyle = `top: ${Math.max(8, top)}px; left: ${Math.max(8, left)}px; width: ${listWidth}px;`;
+			const nextStyle = `top: ${Math.max(MENTION_PICKER.EDGE_MARGIN, top)}px; left: ${Math.max(MENTION_PICKER.EDGE_MARGIN, left)}px; width: ${listWidth}px;`;
 			if (currentListStyle !== nextStyle) {
 				mentionListStyle = nextStyle;
 			}
 		} else {
 			if (currentInside) mentionListInside = false;
-			const top = showAbove ? inputRect.top - listHeight - 6 : inputRect.bottom + 6;
-			const nextStyle = `top: ${Math.max(8, top)}px; left: ${Math.max(8, inputRect.left)}px; width: ${listWidth}px;`;
+			const top = showAbove
+				? inputRect.top - listHeight - MENTION_PICKER.OFFSET_GAP
+				: inputRect.bottom + MENTION_PICKER.OFFSET_GAP;
+			const nextStyle = `top: ${Math.max(MENTION_PICKER.EDGE_MARGIN, top)}px; left: ${Math.max(MENTION_PICKER.EDGE_MARGIN, inputRect.left)}px; width: ${listWidth}px;`;
 			if (currentListStyle !== nextStyle) {
 				mentionListStyle = nextStyle;
 			}
@@ -490,11 +485,6 @@
 
 	const debouncedSaveWindowState = debounce(saveWindowState, 300);
 
-	function isWordStart(value: string, index: number) {
-		if (index <= 0) return true;
-		return /\s/.test(value[index - 1]);
-	}
-
 	function setsEqual(a: Set<string>, b: Set<string>) {
 		if (a.size !== b.size) return false;
 		for (const value of a) {
@@ -511,18 +501,6 @@
 		if (!mentionMeasureContext) return 0;
 		mentionMeasureContext.font = `${bold ? 'bold ' : ''}${fontSizePx}px 'Pixelated MS Sans Serif', Tahoma, sans-serif`;
 		return mentionMeasureContext.measureText(text).width;
-	}
-
-	function findMentionContext(value: string, cursorIndex: number) {
-		const beforeCursor = value.slice(0, cursorIndex);
-		const atIndex = beforeCursor.lastIndexOf('@');
-		if (atIndex === -1) return null;
-		if (!isWordStart(value, atIndex)) return null;
-		const query = value.slice(atIndex + 1, cursorIndex);
-		if (query.includes(' ') || query.includes('\n') || query.includes('\t')) return null;
-		if (query.length > 32) return null;
-		if (query && !USERNAME_PATTERN.test(query)) return null;
-		return { atIndex, query };
 	}
 
 	function updateMentionState(input: HTMLInputElement) {
@@ -634,9 +612,7 @@
 
 	function scrollMentionOptionIntoView() {
 		if (!mentionActiveId) return;
-		const option =
-			document.getElementById(mentionActiveId) ??
-			mentionListContainer?.querySelector(`[id='${mentionActiveId}']`);
+		const option = document.getElementById(mentionActiveId);
 		option?.scrollIntoView({ block: 'nearest' });
 	}
 
@@ -672,9 +648,7 @@
 	function shouldHighlightMention(message: EnrichedMessage) {
 		if (!currentUser) return false;
 		if (message.senderId === currentUser.id) return false;
-		const escapedNickname = currentUser.nickname.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-		const mentionRegex = new RegExp(`(?:^|\\s)@(${escapedNickname})(?=$|\\s|[^a-zA-Z0-9_-])`, 'i');
-		return mentionRegex.test(message.content);
+		return containsMention(message.content, currentUser.nickname);
 	}
 
 	function handleInputChange(e: Event) {
@@ -873,11 +847,6 @@
 		showAuth = false;
 	}
 
-	function handleMentionMouseDown(event: MouseEvent, user: SafeUser) {
-		event.preventDefault();
-		applyMentionSelection(user);
-	}
-
 	// ============ LIFECYCLE ============
 
 	onMount(() => {
@@ -983,7 +952,7 @@
 	$effect(() => {
 		if (!mentionOpen || mentionSuggestions.length === 0) return;
 		// Track mentionSelectedIndex to trigger scroll on keyboard navigation
-		const _index = mentionSelectedIndex;
+		void mentionSelectedIndex;
 		void tick().then(() => scrollMentionOptionIntoView());
 	});
 </script>
@@ -1199,8 +1168,11 @@
 										-webkit-text-fill-color: transparent;
 										background-clip: text;
 									"
-									aria-hidden="true">{@html formattedInputMessage}</span
+									aria-hidden="true"
 								>
+									<!-- eslint-disable-next-line svelte/no-at-html-tags -- formattedInputMessage is sanitized by highlightMentionsInput -->
+									{@html formattedInputMessage}
+								</span>
 								<input
 									type="text"
 									bind:value={currentMessage}
@@ -1226,6 +1198,10 @@
 										? `Patientez ${cooldownProgress.toFixed(1)}s...`
 										: 'Écrivez un message...'}
 									disabled={!currentUser || Boolean(cooldownEndTime)}
+									role="combobox"
+									aria-autocomplete="list"
+									aria-controls={mentionOpen ? mentionListBoxId : undefined}
+									aria-expanded={mentionOpen}
 								/>
 							</div>
 						{:else}
@@ -1255,14 +1231,17 @@
 										? `text-decoration: ${[currentTextStyle.underline ? 'underline' : '', currentTextStyle.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ')};`
 										: ''}
 									"
-									aria-hidden="true">{@html formattedInputMessage}</span
+									aria-hidden="true"
 								>
+									<!-- eslint-disable-next-line svelte/no-at-html-tags -- formattedInputMessage is sanitized by highlightMentionsInput -->
+									{@html formattedInputMessage}
+								</span>
 								<input
 									type="text"
 									bind:value={currentMessage}
 									maxlength={MAX_MESSAGE_LENGTH}
 									class="styled-input mention-overlay-input retro-font-{currentTextStyle.fontFamily}"
-									style="width: 100%; background: transparent; font-size: {currentTextStyle.fontSize}px; {currentTextStyle.bold
+									style="width: 100%; background: transparent; color: transparent; font-size: {currentTextStyle.fontSize}px; {currentTextStyle.bold
 										? currentTextStyle.fontFamily === 'tahoma'
 											? 'font-weight: 200;'
 											: 'font-weight: 700;'
@@ -1282,6 +1261,10 @@
 										? `Patientez ${cooldownProgress.toFixed(1)}s...`
 										: 'Écrivez un message...'}
 									disabled={!currentUser || Boolean(cooldownEndTime)}
+									role="combobox"
+									aria-autocomplete="list"
+									aria-controls={mentionOpen ? mentionListBoxId : undefined}
+									aria-expanded={mentionOpen}
 								/>
 							</div>
 						{/if}
@@ -1298,45 +1281,15 @@
 						{/if}
 					</div>
 					{#if mentionOpen}
-						<div
-							class="sunken-panel mention-picker"
-							class:mention-picker-portal={!mentionListInside}
-							role="listbox"
-							aria-label="Suggestions de mentions"
-							aria-activedescendant={mentionActiveId}
-							tabindex="-1"
-							style={`z-index: ${mentionListInside ? 10 : 3000}; ${mentionListStyle}`}
-							onmousedown={(event) => event.preventDefault()}
-							bind:this={mentionListContainer}
-							aria-live="polite"
-						>
-							{#if mentionSuggestions.length > 0}
-								{#each mentionSuggestions as user, index (user.id)}
-									<div
-										id={getMentionListItemId(user.id)}
-										role="option"
-										class="mention-option"
-										class:selected={index === mentionSelectedIndex}
-										aria-selected={index === mentionSelectedIndex}
-										tabindex="-1"
-										onmousedown={(event) => handleMentionMouseDown(event, user)}
-									>
-										<span class="mention-name">{user.nickname}</span>
-										<span class="mention-status {user.status}">{user.status}</span>
-									</div>
-								{/each}
-							{:else}
-								<div
-									class="mention-empty"
-									role="option"
-									aria-disabled="true"
-									aria-selected="false"
-									tabindex="-1"
-								>
-									Aucun utilisateur
-								</div>
-							{/if}
-						</div>
+						<MentionPicker
+							suggestions={mentionSuggestions}
+							selectedIndex={mentionSelectedIndex}
+							activeId={mentionActiveId}
+							listBoxId={mentionListBoxId}
+							listStyle={mentionListStyle}
+							isPortal={!mentionListInside}
+							onSelect={applyMentionSelection}
+						/>
 					{/if}
 
 					{#if cooldownEndTime}
@@ -1513,7 +1466,6 @@
 	.mention-text-overlay :global(.input-mention),
 	.gradient-text-overlay :global(.input-mention) {
 		color: #1e2a72;
-		font-weight: bold;
 		-webkit-text-fill-color: #1e2a72;
 	}
 
@@ -1778,70 +1730,6 @@
 			transform: translateY(0);
 			opacity: 1;
 		}
-	}
-
-	.mention-picker {
-		position: absolute;
-		padding: 0.35rem;
-		max-height: 220px;
-		overflow-y: auto;
-		background: #fffef5;
-		border: 2px inset #dfdfdf;
-		box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.15);
-		font-family: 'Pixelated MS Sans Serif', Tahoma, sans-serif;
-		font-size: 0.85rem;
-		z-index: 10;
-		min-width: 220px;
-	}
-
-	.mention-picker-portal {
-		position: fixed;
-	}
-
-	.mention-option {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.5rem;
-		padding: 0.25rem 0.4rem;
-		border: 1px solid transparent;
-		cursor: pointer;
-	}
-
-	.mention-option.selected {
-		background: #dbe8ff;
-		border-color: #2d31a6;
-	}
-
-	.mention-name {
-		font-weight: bold;
-		color: #1e2a72;
-	}
-
-	.mention-status {
-		font-size: 0.7rem;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		color: #5b5b5b;
-	}
-
-	.mention-status.online {
-		color: #1f7a1f;
-	}
-
-	.mention-status.away,
-	.mention-status.busy {
-		color: #b06a00;
-	}
-
-	.mention-status.offline {
-		color: #8a8a8a;
-	}
-
-	.mention-empty {
-		padding: 0.35rem 0.5rem;
-		color: #777;
-		font-style: italic;
 	}
 
 	.message.mention-highlight {

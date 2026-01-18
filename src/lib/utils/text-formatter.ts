@@ -6,6 +6,7 @@ import rehypeStringify from 'rehype-stringify';
 import type { TextStyle } from '../types/text-formatting';
 import { validateTextStyle } from '../types/text-formatting';
 import { isValidBBCodeColor, isValidBBCodeFontSize, isValidBBCodeFont } from '../validation/bbcode';
+import { highlightMentionsHtml } from './mention';
 
 // Define allowed HTML tags and attributes for security
 const ALLOWED_SCHEMA = {
@@ -189,10 +190,7 @@ export async function formatText(
 		}
 
 		// Apply mention highlighting after sanitization
-		formattedHtml = formattedHtml.replace(
-			/(^|[\s>])@([a-zA-Z0-9_-]{1,32})(?=$|[\s<]|[^a-zA-Z0-9_-])/g,
-			'$1<span class="mention-token">@$2</span>'
-		);
+		formattedHtml = highlightMentionsHtml(formattedHtml);
 
 		return formattedHtml;
 	} catch (error) {
