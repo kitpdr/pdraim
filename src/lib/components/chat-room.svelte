@@ -58,7 +58,6 @@
 	}
 
 	// Text formatting state - initialize directly with merged initial style
-	// svelte-ignore state_referenced_locally - intentionally capturing initial value
 	let currentTextStyle = $state<TextStyle>({
 		...DEFAULT_TEXT_STYLE,
 		...initialTextStyle,
