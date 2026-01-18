@@ -1,7 +1,6 @@
 import type { Handle } from '@sveltejs/kit';
-import db from '$lib/db/db.server';
+import { users } from '$lib/db/convex.server';
 import { handleRateLimit } from '$lib/api/rate-limiter';
-import { users } from '$lib/db/schema';
 import { createLogger } from '$lib/utils/logger.server';
 import { ensureDefaultChatRoom } from '$lib/utils/chat.server';
 import { validateSessionToken } from '$lib/api/session.server';
@@ -24,11 +23,11 @@ function addSecurityHeaders(response: Response): Response {
 	});
 }
 
-// Set all users to offline on server start
+// Set all users to offline on server start (using Convex)
 async function setAllUsersOffline() {
 	try {
-		await db.update(users).set({ status: 'offline' });
-		log.info('All users set to offline on server start');
+		const result = await users.setAllOffline();
+		log.info('All users set to offline on server start', { updated: result.updated });
 	} catch (error: unknown) {
 		log.error('Failed to set users offline on server start:', { error });
 	}
@@ -38,7 +37,7 @@ async function setAllUsersOffline() {
 Promise.resolve()
 	.then(async () => {
 		log.info('Initializing server...');
-		await ensureDefaultChatRoom(db);
+		await ensureDefaultChatRoom();
 		await setAllUsersOffline();
 		log.info('Server initialized successfully');
 	})
