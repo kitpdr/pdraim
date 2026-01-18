@@ -256,7 +256,8 @@ http.route({
 	handler: httpAction(async (ctx, request) => {
 		if (!validateSecret(request)) return unauthorizedResponse();
 
-		const { chatRoomId, senderId, content, type, styleData, hasFormatting } = await request.json();
+		const { chatRoomId, senderId, content, type, styleData, hasFormatting, timestamp } =
+			await request.json();
 		try {
 			const message = await ctx.runMutation(internal.messagesInternal.send, {
 				chatRoomId,
@@ -264,7 +265,8 @@ http.route({
 				content,
 				type,
 				styleData,
-				hasFormatting
+				hasFormatting,
+				timestamp
 			});
 			return new Response(JSON.stringify(message), {
 				headers: { 'Content-Type': 'application/json' }

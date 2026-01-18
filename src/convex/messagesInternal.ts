@@ -41,7 +41,8 @@ export const send = internalMutation({
 		content: v.string(),
 		type: v.optional(v.string()),
 		styleData: v.optional(v.string()),
-		hasFormatting: v.optional(v.boolean())
+		hasFormatting: v.optional(v.boolean()),
+		timestamp: v.optional(v.number())
 	},
 	handler: async (ctx, args) => {
 		// Verify room exists
@@ -61,7 +62,7 @@ export const send = internalMutation({
 			senderId: args.senderId,
 			content: args.content,
 			type: args.type ?? 'chat',
-			timestamp: Date.now(),
+			timestamp: args.timestamp ?? Date.now(),
 			styleData: args.styleData,
 			hasFormatting: args.hasFormatting ?? false
 		});
