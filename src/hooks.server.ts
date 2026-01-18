@@ -35,9 +35,21 @@ async function setAllUsersOffline() {
 
 // Initialize server (deferred, non-blocking for Cloudflare Workers compatibility)
 let initPromise: Promise<void> | null = null;
+let lastFailedAttempt = 0;
+let failureCount = 0;
+const BASE_COOLDOWN = 5000; // 5 seconds
+const MAX_COOLDOWN = 60000; // 1 minute max
 
 function initializeServer(): Promise<void> {
 	if (initPromise) return initPromise;
+
+	// Exponential backoff after failures
+	if (lastFailedAttempt > 0) {
+		const cooldown = Math.min(BASE_COOLDOWN * Math.pow(2, failureCount - 1), MAX_COOLDOWN);
+		if (Date.now() - lastFailedAttempt < cooldown) {
+			return Promise.resolve();
+		}
+	}
 
 	initPromise = (async () => {
 		try {
@@ -45,9 +57,12 @@ function initializeServer(): Promise<void> {
 			await ensureDefaultChatRoom();
 			await setAllUsersOffline();
 			log.info('Server initialized successfully');
+			lastFailedAttempt = 0;
+			failureCount = 0;
 		} catch (error: unknown) {
-			log.error('Failed to initialize server:', { error });
-			// Reset so next request can retry
+			log.error('Failed to initialize server:', { error, failureCount: failureCount + 1 });
+			lastFailedAttempt = Date.now();
+			failureCount++;
 			initPromise = null;
 		}
 	})();
@@ -56,10 +71,15 @@ function initializeServer(): Promise<void> {
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
-	// Lazy initialization on first request (Cloudflare Workers compatible)
-	await initializeServer();
+	const path = event.url.pathname;
 
-	log.debug('Handling request', { path: event.url.pathname });
+	// Skip initialization for static assets and non-API routes
+	const needsInit = path.startsWith('/api/') && !path.startsWith('/api/health');
+	if (needsInit) {
+		await initializeServer();
+	}
+
+	log.debug('Handling request', { path });
 
 	// CSRF protection: validate Origin header for state-changing requests
 	if (event.request.method !== 'GET' && event.request.method !== 'HEAD') {
