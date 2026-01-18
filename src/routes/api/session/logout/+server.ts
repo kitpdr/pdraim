@@ -1,11 +1,12 @@
 import { json } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
 import { invalidateSession } from '$lib/api/session.server';
 import { sha256 } from '$lib/api/session.server'; // re-use sha256 helper to compute session id
 import { createLogger } from '$lib/utils/logger.server';
 
 const log = createLogger('logout-server');
 
-export async function POST({ cookies }) {
+export const POST: RequestHandler = async ({ cookies }) => {
 	const token = cookies.get('session');
 
 	if (token) {
@@ -20,4 +21,4 @@ export async function POST({ cookies }) {
 	}
 
 	return json({ success: true });
-}
+};
