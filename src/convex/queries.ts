@@ -2,6 +2,23 @@ import { query } from './_generated/server';
 import { authQuery } from './auth';
 import { v } from 'convex/values';
 
+// Timeout threshold for marking users as offline (2 minutes)
+const ONLINE_TIMEOUT_MS = 2 * 60 * 1000;
+
+// Helper to compute effective status based on lastSeen timeout
+function computeEffectiveStatus(
+	status: string,
+	lastSeen: number | undefined
+): 'online' | 'away' | 'busy' | 'idle' | 'offline' {
+	if (status === 'offline') return 'offline';
+	const timeoutThreshold = Date.now() - ONLINE_TIMEOUT_MS;
+	const effectiveLastSeen = lastSeen ?? 0;
+	if (effectiveLastSeen < timeoutThreshold) {
+		return 'offline';
+	}
+	return status as 'online' | 'away' | 'busy' | 'idle';
+}
+
 // ============ PUBLIC QUERIES (no auth required) ============
 
 // Public query: Get messages for a chat room (real-time subscription)
@@ -36,7 +53,7 @@ export const getMessagesPublic = query({
 						? {
 								id: sender._id,
 								nickname: sender.nickname,
-								status: sender.status,
+								status: computeEffectiveStatus(sender.status, sender.lastSeen),
 								avatarUrl: sender.avatarUrl
 							}
 						: null
@@ -55,11 +72,11 @@ export const getUsersPublic = query({
 	handler: async (ctx) => {
 		const users = await ctx.db.query('users').collect();
 
-		// Return safe user data (no passwords)
+		// Return safe user data (no passwords) with computed status
 		return users.map((user) => ({
 			id: user._id,
 			nickname: user.nickname,
-			status: user.status,
+			status: computeEffectiveStatus(user.status, user.lastSeen),
 			avatarUrl: user.avatarUrl,
 			lastSeen: user.lastSeen
 		}));
@@ -131,7 +148,7 @@ export const getMessages = authQuery({
 						? {
 								id: sender._id,
 								nickname: sender.nickname,
-								status: sender.status,
+								status: computeEffectiveStatus(sender.status, sender.lastSeen),
 								avatarUrl: sender.avatarUrl
 							}
 						: null
@@ -150,11 +167,11 @@ export const getUsers = authQuery({
 	handler: async (ctx) => {
 		const users = await ctx.db.query('users').collect();
 
-		// Return safe user data (no passwords)
+		// Return safe user data (no passwords) with computed status
 		return users.map((user) => ({
 			id: user._id,
 			nickname: user.nickname,
-			status: user.status,
+			status: computeEffectiveStatus(user.status, user.lastSeen),
 			avatarUrl: user.avatarUrl,
 			lastSeen: user.lastSeen
 		}));
