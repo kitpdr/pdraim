@@ -6,22 +6,42 @@
 export const RETRO_FONTS = {
 	pixelated: {
 		name: 'Pixelated MS Sans Serif',
+		shortName: 'MS Sans Serif',
 		stack: '"Pixelated MS Sans Serif", "Tahoma", Geneva, sans-serif'
 	},
-	tahoma: { name: 'Tahoma', stack: 'Tahoma, "Pixelated MS Sans Serif", Geneva, sans-serif' },
-	verdana: { name: 'Verdana', stack: 'Verdana, "Pixelated MS Sans Serif", Geneva, sans-serif' },
+	tahoma: {
+		name: 'Tahoma',
+		shortName: 'Tahoma',
+		stack: 'Tahoma, "Pixelated MS Sans Serif", Geneva, sans-serif'
+	},
+	verdana: {
+		name: 'Verdana',
+		shortName: 'Verdana',
+		stack: 'Verdana, "Pixelated MS Sans Serif", Geneva, sans-serif'
+	},
 	comicSans: {
 		name: 'Comic Sans MS',
+		shortName: 'Comic Sans',
 		stack: '"Comic Sans MS", "Pixelated MS Sans Serif", cursive, sans-serif'
 	},
-	timesNewRoman: { name: 'Times New Roman', stack: '"Times New Roman", Times, serif' },
-	arial: { name: 'Arial', stack: 'Arial, "Pixelated MS Sans Serif", Helvetica, sans-serif' },
+	timesNewRoman: {
+		name: 'Times New Roman',
+		shortName: 'Times',
+		stack: '"Times New Roman", Times, serif'
+	},
+	arial: {
+		name: 'Arial',
+		shortName: 'Arial',
+		stack: 'Arial, "Pixelated MS Sans Serif", Helvetica, sans-serif'
+	},
 	courierNew: {
 		name: 'Courier New',
+		shortName: 'Courier',
 		stack: '"Courier New", "Perfect DOS VGA 437 Win", Courier, monospace'
 	},
 	dos: {
 		name: 'Perfect DOS VGA 437',
+		shortName: 'DOS VGA',
 		stack: '"Perfect DOS VGA 437 Win", "Courier New", Courier, monospace'
 	}
 } as const;

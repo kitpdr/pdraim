@@ -87,7 +87,7 @@
 			title="Font Family"
 		>
 			{#each Object.entries(RETRO_FONTS) as [key, font] (key)}
-				<option value={key} style="font-family: {font.stack};">{font.name}</option>
+				<option value={key}>{font.shortName}</option>
 			{/each}
 		</select>
 	{/if}
@@ -182,17 +182,22 @@
 		gap: 1px;
 	}
 
-	/* Fix font dropdown text alignment */
+	/* Fix font dropdown text alignment and overflow */
 	select {
 		height: 20px;
 		line-height: 1;
 		vertical-align: middle;
-		padding: 1px 4px;
+		padding: 1px 21px 1px 4px;
 		font-size: 11px;
+		max-width: 120px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	select option {
 		padding: 2px 4px;
 		line-height: normal;
+		font-family: inherit;
 	}
 </style>

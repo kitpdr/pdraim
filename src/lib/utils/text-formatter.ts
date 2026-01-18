@@ -125,6 +125,9 @@ function preprocessFormatting(text: string): string {
 		});
 	});
 
+	// Note: Mention highlighting is applied after sanitization in formatText
+	// to ensure it's not stripped by the sanitizer
+
 	return processedText;
 }
 
@@ -184,6 +187,12 @@ export async function formatText(
 		if (!formattedHtml) {
 			return escapeHtml(text);
 		}
+
+		// Apply mention highlighting after sanitization
+		formattedHtml = formattedHtml.replace(
+			/(^|[\s>])@([a-zA-Z0-9_-]{1,32})(?=$|[\s<]|[^a-zA-Z0-9_-])/g,
+			'$1<span class="mention-token">@$2</span>'
+		);
 
 		return formattedHtml;
 	} catch (error) {
