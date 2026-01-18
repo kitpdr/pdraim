@@ -76,6 +76,49 @@ Vous pouvez visualiser et gérer vos données via le dashboard Convex :
 npx convex dashboard
 ```
 
+## Déploiement Cloudflare Pages
+
+Le projet est déployé sur [Cloudflare Pages](https://pages.cloudflare.com/). Les Workers Cloudflare ont des **limitations strictes** à respecter.
+
+### Opérations interdites au niveau global/module
+
+Cloudflare Workers **n'autorisent PAS** les opérations suivantes au niveau global (en dehors des handlers de requête) :
+
+```typescript
+// INTERDIT - provoque "Disallowed operation called within global scope"
+setInterval(() => { ... }, 1000);
+setTimeout(() => { ... }, 1000);
+fetch('https://api.example.com');
+crypto.getRandomValues(new Uint8Array(16));
+
+// AUTORISE - à l'intérieur d'un handler
+export const GET: RequestHandler = async () => {
+  const random = crypto.getRandomValues(new Uint8Array(16));
+  const response = await fetch('https://api.example.com');
+  // ...
+};
+```
+
+### Bonnes pratiques
+
+| A eviter | Alternative |
+|------------|----------------|
+| `setInterval` pour cleanup | Lazy cleanup à chaque requête |
+| `fetch()` au chargement du module | `fetch()` dans les handlers |
+| Création de clients API au niveau module | Création lazy ou dans les handlers |
+| `process.exit()` | Retourner une Response avec status d'erreur |
+| Bibliothèques avec worker threads (ex: `pino-pretty`) | Versions compatibles edge (ex: `pino` sans transports) |
+
+### Variables d'environnement
+
+- Utilisez `$env/dynamic/private` (runtime) au lieu de `$env/static/private` (build-time)
+- Les variables définies dans le dashboard Cloudflare ne sont disponibles qu'au runtime
+
+### Références
+
+- [Cloudflare Workers Runtime APIs](https://developers.cloudflare.com/workers/runtime-apis/)
+- [SvelteKit Cloudflare Adapter](https://svelte.dev/docs/kit/adapter-cloudflare)
+
 ## Documentation et Ressources
 
 Si vous n'avez jamais utilisé Svelte/Kit ou Convex, référez-vous aux documentations officielles :
