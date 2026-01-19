@@ -536,9 +536,15 @@
 		if (!messageId) return;
 		if (mentionObserver) {
 			mentionObserver.observe(node);
-			return;
 		}
-		// observer will scan after setup
+		// Return destroy method to properly cleanup when node is removed
+		return {
+			destroy() {
+				if (mentionObserver) {
+					mentionObserver.unobserve(node);
+				}
+			}
+		};
 	}
 
 	function closeMentionPicker() {
