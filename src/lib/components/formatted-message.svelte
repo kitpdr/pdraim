@@ -3,6 +3,7 @@
 	import type { TextStyle } from '../types/text-formatting';
 	import { formatText, createGradientText, escapeHtml } from '../utils/text-formatter';
 	import { DEFAULT_TEXT_STYLE } from '../types/text-formatting';
+	import { highlightMentionsPlain } from '../utils/mention';
 
 	// Props
 	let { message, allowFormatting = true } = $props<{
@@ -18,7 +19,8 @@
 	// Process message formatting
 	async function processMessage() {
 		if (!allowFormatting || !message.hasFormatting) {
-			formattedContent = escapeHtml(message.content);
+			// Still apply mention highlighting to plain text messages
+			formattedContent = highlightMentionsPlain(escapeHtml(message.content));
 			return;
 		}
 
@@ -232,6 +234,12 @@
 	/* Don't inherit color for gradient text spans */
 	:global(.formatted-message:not(.gradient-text-static)) {
 		color: inherit;
+	}
+
+	/* Mention token styling */
+	:global(.mention-token) {
+		color: #1e2a72;
+		font-weight: bold;
 	}
 
 	/* Ensure accessibility for screen readers */

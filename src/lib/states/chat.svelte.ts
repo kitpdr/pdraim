@@ -16,9 +16,19 @@ class ChatState {
 	// Connection state for UI feedback
 	private _connectionStatus = $state<'connected' | 'disconnected' | 'reconnecting'>('disconnected');
 
+	// Mention notifications per room
+	private _roomMentionCounts = $state<Record<string, number>>({});
+
 	// Derived public state
 	public connectionStatus = $derived(this._connectionStatus);
 	public isConnected = $derived(this._connectionStatus === 'connected');
+	public mentionTotal = $derived(
+		Object.values(this._roomMentionCounts).reduce((sum, count) => sum + count, 0)
+	);
+
+	getMentionTotal() {
+		return this.mentionTotal;
+	}
 
 	/**
 	 * Get the current user
@@ -34,6 +44,7 @@ class ChatState {
 		if (!user) {
 			this._currentUser = null;
 			this._connectionStatus = 'disconnected';
+			this._roomMentionCounts = {};
 			return;
 		}
 
@@ -61,6 +72,24 @@ class ChatState {
 	 */
 	setConnectionStatus(status: 'connected' | 'disconnected' | 'reconnecting') {
 		this._connectionStatus = status;
+	}
+
+	/**
+	 * Update mention count for a room
+	 */
+	setRoomMentionCount(roomId: string | null, count: number) {
+		if (!roomId) return;
+		const next = Math.max(0, count);
+		if (this._roomMentionCounts[roomId] === next) return;
+		this._roomMentionCounts = { ...this._roomMentionCounts, [roomId]: next };
+	}
+
+	/**
+	 * Get mention count for a room
+	 */
+	getRoomMentionCount(roomId: string | null) {
+		if (!roomId) return 0;
+		return this._roomMentionCounts[roomId] ?? 0;
 	}
 }
 

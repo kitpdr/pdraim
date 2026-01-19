@@ -6,6 +6,7 @@ import rehypeStringify from 'rehype-stringify';
 import type { TextStyle } from '../types/text-formatting';
 import { validateTextStyle } from '../types/text-formatting';
 import { isValidBBCodeColor, isValidBBCodeFontSize, isValidBBCodeFont } from '../validation/bbcode';
+import { highlightMentionsHtml } from './mention';
 
 // Define allowed HTML tags and attributes for security
 const ALLOWED_SCHEMA = {
@@ -125,6 +126,9 @@ function preprocessFormatting(text: string): string {
 		});
 	});
 
+	// Note: Mention highlighting is applied after sanitization in formatText
+	// to ensure it's not stripped by the sanitizer
+
 	return processedText;
 }
 
@@ -184,6 +188,9 @@ export async function formatText(
 		if (!formattedHtml) {
 			return escapeHtml(text);
 		}
+
+		// Apply mention highlighting after sanitization
+		formattedHtml = highlightMentionsHtml(formattedHtml);
 
 		return formattedHtml;
 	} catch (error) {
