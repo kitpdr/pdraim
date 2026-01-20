@@ -78,6 +78,7 @@
 	}
 	button:disabled {
 		cursor: not-allowed;
-		opacity: 0.7;
+		opacity: 0.5;
+		filter: grayscale(50%);
 	}
 </style>

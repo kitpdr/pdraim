@@ -1143,7 +1143,7 @@
 						</div>
 					{/if}
 
-					<div class="field-row input-container" style="margin: 0;">
+					<div class="field-row input-container" style="margin: 0; position: relative;">
 						{#if currentTextStyle.gradient && currentTextStyle.gradient.length > 1}
 							<div
 								class="gradient-input-wrapper"
@@ -1184,7 +1184,7 @@
 									bind:value={currentMessage}
 									maxlength={MAX_MESSAGE_LENGTH}
 									class="styled-input retro-font-{currentTextStyle.fontFamily}"
-									style="width: 100%; background: transparent; color: transparent; caret-color: black; font-size: {currentTextStyle.fontSize}px; {currentTextStyle.bold
+									style="width: 100%; background: transparent; color: transparent; caret-color: black; font-size: {currentTextStyle.fontSize}px; padding-left: 3px; {currentTextStyle.bold
 										? currentTextStyle.fontFamily === 'tahoma'
 											? 'font-weight: 200;'
 											: 'font-weight: 700;'
@@ -1200,9 +1200,11 @@
 									onfocus={handleInputFocus}
 									onclick={handleInputClick}
 									bind:this={messageInput}
-									placeholder={cooldownEndTime
-										? `Patientez ${cooldownProgress.toFixed(1)}s...`
-										: 'Écrivez un message...'}
+									placeholder={!currentUser
+										? 'Inscris-toi pour participer.'
+										: cooldownEndTime
+											? `Patientez ${cooldownProgress.toFixed(1)}s...`
+											: 'Écrivez un message...'}
 									disabled={!currentUser || Boolean(cooldownEndTime)}
 									role="combobox"
 									aria-autocomplete="list"
@@ -1247,7 +1249,7 @@
 									bind:value={currentMessage}
 									maxlength={MAX_MESSAGE_LENGTH}
 									class="styled-input mention-overlay-input retro-font-{currentTextStyle.fontFamily}"
-									style="width: 100%; background: transparent; color: transparent; font-size: {currentTextStyle.fontSize}px; {currentTextStyle.bold
+									style="width: 100%; background: transparent; color: transparent; font-size: {currentTextStyle.fontSize}px; padding-left: 3px; {currentTextStyle.bold
 										? currentTextStyle.fontFamily === 'tahoma'
 											? 'font-weight: 200;'
 											: 'font-weight: 700;'
@@ -1263,9 +1265,11 @@
 									onfocus={handleInputFocus}
 									onclick={handleInputClick}
 									bind:this={messageInput}
-									placeholder={cooldownEndTime
-										? `Patientez ${cooldownProgress.toFixed(1)}s...`
-										: 'Écrivez un message...'}
+									placeholder={!currentUser
+										? 'Inscris-toi pour participer.'
+										: cooldownEndTime
+											? `Patientez ${cooldownProgress.toFixed(1)}s...`
+											: 'Écrivez un message...'}
 									disabled={!currentUser || Boolean(cooldownEndTime)}
 									role="combobox"
 									aria-autocomplete="list"
@@ -1547,8 +1551,15 @@
 
 	.input-container input:disabled {
 		opacity: 0.7;
-		background-color: rgba(128, 128, 128, 0.1);
+		background-color: rgba(128, 128, 128, 0.3) !important;
 		cursor: not-allowed;
+	}
+
+	/* Fade input wrapper when disabled */
+	.input-container:has(input:disabled) .gradient-input-wrapper,
+	.input-container:has(input:disabled) .mention-input-wrapper {
+		opacity: 0.6;
+		background-color: #f0f0f0 !important;
 	}
 
 	.hidden {
