@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as chatRoomsInternal from "../chatRoomsInternal.js";
+import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as messagesInternal from "../messagesInternal.js";
 import type * as mutations from "../mutations.js";
@@ -27,6 +28,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   chatRoomsInternal: typeof chatRoomsInternal;
+  crons: typeof crons;
   http: typeof http;
   messagesInternal: typeof messagesInternal;
   mutations: typeof mutations;

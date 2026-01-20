@@ -9,7 +9,9 @@ export default defineSchema({
 		avatarUrl: v.optional(v.string()),
 		createdAt: v.number(),
 		lastSeen: v.optional(v.number())
-	}).index('by_nickname', ['nickname']),
+	})
+		.index('by_nickname', ['nickname'])
+		.index('by_status', ['status']),
 
 	sessions: defineTable({
 		tokenHash: v.string(), // SHA-256 hash of the session token

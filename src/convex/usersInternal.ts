@@ -93,3 +93,32 @@ export const setAllOffline = internalMutation({
 		return { updated: users.length };
 	}
 });
+
+// Cleanup stale users who haven't sent a heartbeat in 2 minutes
+export const cleanupStaleUsers = internalMutation({
+	args: {},
+	handler: async (ctx) => {
+		const ONLINE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+		const timeoutThreshold = Date.now() - ONLINE_TIMEOUT_MS;
+
+		const nonOfflineStatuses = ['online', 'away', 'busy', 'idle'];
+		let updated = 0;
+
+		for (const status of nonOfflineStatuses) {
+			const users = await ctx.db
+				.query('users')
+				.withIndex('by_status', (q) => q.eq('status', status))
+				.collect();
+
+			for (const user of users) {
+				const lastSeen = user.lastSeen ?? 0;
+				if (lastSeen < timeoutThreshold) {
+					await ctx.db.patch(user._id, { status: 'offline' });
+					updated++;
+				}
+			}
+		}
+
+		return { updated };
+	}
+});
