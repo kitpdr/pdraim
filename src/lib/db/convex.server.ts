@@ -43,7 +43,13 @@ export const users = {
 
 	list: () => convexFetch<ConvexUser[]>('/api/users/list', {}),
 
-	setAllOffline: () => convexFetch<{ updated: number }>('/api/users/setAllOffline', {})
+	setAllOffline: () => convexFetch<{ updated: number }>('/api/users/setAllOffline', {}),
+
+	updateLastReadMentionTimestamp: (userId: string, timestamp: number) =>
+		convexFetch<{ success: boolean }>('/api/users/updateLastReadMentionTimestamp', {
+			userId,
+			timestamp
+		})
 };
 
 // ============ SESSIONS ============
@@ -113,6 +119,7 @@ export interface ConvexUser {
 	avatarUrl?: string;
 	createdAt: number;
 	lastSeen?: number;
+	lastReadMentionTimestamp?: number;
 }
 
 export interface ConvexSession {

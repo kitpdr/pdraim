@@ -167,7 +167,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 				nickname: user.nickname,
 				status: 'online',
 				avatarUrl: user.avatarUrl,
-				lastSeen: user.lastSeen
+				lastSeen: user.lastSeen,
+				lastReadMentionTimestamp: user.lastReadMentionTimestamp
 			})
 		} as LoginResponseSuccess),
 		{
