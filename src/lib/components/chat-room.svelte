@@ -203,6 +203,7 @@
 	let hasMoreMessages = $state(true);
 	let oldestMessageTimestamp = $state<number | null>(null);
 	let lastMessageCount = $state(0);
+	let hasInitialScrolled = $state(false);
 
 	// ============ DERIVED STATE ============
 
@@ -291,6 +292,27 @@
 		}
 	});
 
+	// Save text style to database when it changes (after initial load)
+	let lastSavedStyleJson = $state<string | null>(null);
+	$effect(() => {
+		// Only save if user is logged in and style has been initialized
+		if (!currentUser || !hasAppliedUserStyle || !browser) return;
+
+		const styleJson = JSON.stringify(currentTextStyle);
+
+		// Skip if this is the initial load (set lastSavedStyleJson to current)
+		if (lastSavedStyleJson === null) {
+			lastSavedStyleJson = styleJson;
+			return;
+		}
+
+		// Only save if style actually changed
+		if (styleJson !== lastSavedStyleJson) {
+			lastSavedStyleJson = styleJson;
+			debouncedSaveTextStyle(currentTextStyle);
+		}
+	});
+
 	// Auto-scroll to bottom when new messages arrive
 	$effect(() => {
 		if (messages.length > lastMessageCount && messages.length > 0) {
@@ -307,15 +329,13 @@
 
 	// Scroll to bottom on initial load (when chatArea becomes available and messages exist)
 	$effect(() => {
-		if (browser && chatArea && messages.length > 0 && !isInitialLoading) {
-			// Only run once on initial load by checking if we haven't scrolled yet
-			if (chatArea.scrollTop === 0 && chatArea.scrollHeight > chatArea.clientHeight) {
-				tick().then(() => {
-					if (chatArea) {
-						chatArea.scrollTop = chatArea.scrollHeight;
-					}
-				});
-			}
+		if (browser && chatArea && messages.length > 0 && !isInitialLoading && !hasInitialScrolled) {
+			hasInitialScrolled = true;
+			tick().then(() => {
+				if (chatArea) {
+					chatArea.scrollTop = chatArea.scrollHeight;
+				}
+			});
 		}
 	});
 
@@ -570,6 +590,25 @@
 			console.error('Failed to update mention read timestamp:', error);
 		}
 	}, 1000);
+
+	// Debounced function to save text style preferences to the database
+	const debouncedSaveTextStyle = debounce(async (style: TextStyle) => {
+		if (!currentUser || !browser) return;
+		try {
+			await fetch('/api/user/text-preferences', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({
+					defaultStyle: style,
+					allowFormatting: true,
+					maxMessageLength: MAX_MESSAGE_LENGTH
+				})
+			});
+		} catch (error) {
+			console.error('Failed to save text style preferences:', error);
+		}
+	}, 1500);
 
 	function setsEqual(a: Set<string>, b: Set<string>) {
 		if (a.size !== b.size) return false;
