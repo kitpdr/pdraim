@@ -2,9 +2,6 @@
 	import ChatRoom from '$lib/components/chat-room.svelte';
 	import DesktopIcons from '$lib/components/desktop-icons.svelte';
 	import AimLogin from '$lib/components/aim-login.svelte';
-	import type { PageData } from './$types';
-
-	let { data }: { data: PageData } = $props();
 
 	let showChatRoom = $state(true);
 	let showAuth = $state(false);
@@ -18,7 +15,7 @@
 	<DesktopIcons bind:showChatRoom bind:showAuth />
 
 	{#if showChatRoom}
-		<ChatRoom bind:showChatRoom initialTextStyle={data.textStyle} />
+		<ChatRoom bind:showChatRoom />
 	{/if}
 
 	{#if showAuth}

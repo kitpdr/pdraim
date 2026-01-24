@@ -26,13 +26,17 @@ function computeEffectiveStatus(
 // ============ PUBLIC QUERIES (no auth required) ============
 
 // Public query: Get messages for a chat room (real-time subscription)
+// Max 100 messages for public/unauthenticated users
+const PUBLIC_MESSAGE_LIMIT = 100;
+
 export const getMessagesPublic = query({
 	args: {
 		roomId: v.id('chatRooms'),
 		limit: v.optional(v.number())
 	},
 	handler: async (ctx, args) => {
-		const limit = args.limit ?? 50;
+		// Enforce max limit - client cannot request more than PUBLIC_MESSAGE_LIMIT
+		const limit = Math.min(args.limit ?? PUBLIC_MESSAGE_LIMIT, PUBLIC_MESSAGE_LIMIT);
 
 		const messages = await ctx.db
 			.query('messages')
@@ -127,13 +131,12 @@ export const getMessages = authQuery({
 		limit: v.optional(v.number())
 	},
 	handler: async (ctx, args) => {
-		const limit = args.limit ?? 100;
-
-		const messages = await ctx.db
+		const query = ctx.db
 			.query('messages')
 			.withIndex('by_chatRoom', (q) => q.eq('chatRoomId', args.roomId))
-			.order('desc')
-			.take(limit);
+			.order('desc');
+
+		const messages = args.limit ? await query.take(args.limit) : await query.collect();
 
 		// Enrich messages with sender info
 		const enrichedMessages = await Promise.all(
