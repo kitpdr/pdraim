@@ -279,7 +279,8 @@
 
 	// Update text style when user logs in - fetch preferences directly from API
 	$effect(() => {
-		styleFetchNonce;
+		const _styleFetchNonce = styleFetchNonce;
+		if (_styleFetchNonce < 0) return;
 		const userId = currentUser?.id ?? null;
 		const defaultStyleJson = JSON.stringify(DEFAULT_TEXT_STYLE);
 		const initialStyleJson = JSON.stringify(initialTextStyle ?? DEFAULT_TEXT_STYLE);
