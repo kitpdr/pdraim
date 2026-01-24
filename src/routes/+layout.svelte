@@ -55,8 +55,7 @@
 			reason: status !== lastSentStatus ? 'status_changed' : 'force_update',
 			timeSinceLastUpdate,
 			trigger: new Error().stack?.split('\n')[2]?.trim(),
-			hasSession: true,
-			cookiePresent: browser ? document.cookie.includes('session=') : false
+			hasSession: true
 		});
 
 		try {
@@ -220,7 +219,6 @@
 						expiresAt: new Date(data.session.expiresAt)
 					}
 				: null,
-			cookiePresent: document.cookie.includes('session='),
 			isVisible
 		});
 

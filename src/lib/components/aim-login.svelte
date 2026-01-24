@@ -2,7 +2,7 @@
 <script lang="ts">
 	import { draggable } from '$lib/actions/draggable';
 	import type { RegisterResponse, RegisterResponseError } from '$lib/types/payloads';
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate } from '$app/navigation';
 	import { chatState } from '$lib/states/chat.svelte';
 	import { createSafeUser } from '$lib/types/chat';
 	import { onMount } from 'svelte';
@@ -105,12 +105,15 @@
 			await chatState.setCurrentUser(data.user ? createSafeUser(data.user) : null);
 			loginStatus = 'success';
 
+			// Refresh session-dependent data
+			await invalidate('app:session');
+			await invalidate('app:chat');
+
 			// Call the callback prop if provided
 			onLoginSuccess?.(data.user ? createSafeUser(data.user) : null);
 			// Auto close login window after 3 seconds on successful login
 			setTimeout(() => {
 				console.debug('Auto closing AIM Login component after successful login');
-				invalidateAll();
 				handleClose();
 			}, 3000);
 
@@ -222,10 +225,11 @@
 			}
 			console.debug('Auto login after registration succeeded:', data);
 			await chatState.setCurrentUser(data.user ? createSafeUser(data.user) : null);
+			await invalidate('app:session');
+			await invalidate('app:chat');
 			onLoginSuccess?.(data.user ? createSafeUser(data.user) : null);
 			setTimeout(() => {
 				console.debug('Auto closing AIM Login component after auto login on registration');
-				invalidateAll();
 				handleClose();
 			}, 3000);
 		} catch (err) {

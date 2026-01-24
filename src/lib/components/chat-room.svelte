@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { chatState } from '../states/chat.svelte';
-	import { useQuery } from 'convex-svelte';
-	import { api } from '../../convex/_generated/api';
+	import { useConvexClient, useQuery } from 'convex-svelte';
+	import { api as convexApi } from '../../convex/_generated/api';
 	import type { Id } from '../../convex/_generated/dataModel';
 	import type { Message, EnrichedMessage, SafeUser } from '../types/chat';
 	import { onMount, tick } from 'svelte';
 	import { SvelteSet, SvelteMap } from 'svelte/reactivity';
 	import { browser } from '$app/environment';
+	import { api } from '$lib/api/client';
 	import { draggable } from '$lib/actions/draggable';
 	import { resizable } from '$lib/actions/resizable';
 	import { maximizable } from '$lib/actions/maximizable';
@@ -33,23 +34,28 @@
 	import { MAX_MESSAGE_LENGTH } from '$lib/validation/message';
 
 	// Props
-	let { showChatRoom = $bindable(), initialTextStyle = DEFAULT_TEXT_STYLE } = $props();
+	let { showChatRoom = $bindable(), initialTextStyle = DEFAULT_TEXT_STYLE } = $props<{
+		showChatRoom?: boolean;
+		initialTextStyle?: TextStyle;
+	}>();
 
 	// ============ CONVEX REAL-TIME SUBSCRIPTIONS ============
 
 	// Subscribe to default room (to get room ID)
-	const defaultRoomQuery = useQuery(api.queries.getDefaultRoomPublic, {});
+	const defaultRoomQuery = useQuery(convexApi.queries.getDefaultRoomPublic, {});
 
 	// Subscribe to users (buddy list) - real-time updates
-	const usersQuery = useQuery(api.queries.getUsersPublic, {});
+	const usersQuery = useQuery(convexApi.queries.getUsersPublic, {});
 
 	// Room ID from Convex query
 	const roomId = $derived(defaultRoomQuery.data?.id as Id<'chatRooms'> | undefined);
 
 	// Subscribe to messages - only when room ID is available
 	const messagesQuery = $derived(
-		roomId ? useQuery(api.queries.getMessagesPublic, () => ({ roomId: roomId!, limit: 100 })) : null
+		roomId ? useQuery(convexApi.queries.getMessagesPublic, () => ({ roomId: roomId! })) : null
 	);
+
+	const convexClient = useConvexClient();
 
 	// Transform Convex users to SafeUser format
 	const onlineUsers = $derived.by<SafeUser[]>(() => {
@@ -153,14 +159,14 @@
 
 	let currentMessage = $state('');
 	let inputScrollLeft = $state(0);
-	// Initialize text style with prop value
-	let currentTextStyle = $state<TextStyle>({
-		...DEFAULT_TEXT_STYLE,
-		...initialTextStyle,
-		color: initialTextStyle.color || '#000000'
-	});
-	// Track if we've applied user's style from DB (to avoid resetting on every prop change)
+	// Initialize text style with defaults - user-specific style applied after API fetch
+	let currentTextStyle = $state<TextStyle>({ ...DEFAULT_TEXT_STYLE });
+	// Track if we've applied the user's style from the API/DB (to avoid repeated fetch resets)
 	let hasAppliedUserStyle = $state(false);
+	let lastInitialStyleJson = $state<string | null>(null);
+	let styleFetchNonce = $state(0);
+	let styleFetchAttempts = 0;
+	let styleFetchInFlight = false;
 	let lastUserId = $state<string | null>(null);
 
 	// ============ MENTION STATE ============
@@ -202,7 +208,8 @@
 	let isLoadingMore = $state(false);
 	let hasMoreMessages = $state(true);
 	let oldestMessageTimestamp = $state<number | null>(null);
-	let lastMessageCount = $state(0);
+	let lastMessageSignature = $state<string | null>(null);
+	let hasInitialScrolled = $state(false);
 
 	// ============ DERIVED STATE ============
 
@@ -270,52 +277,118 @@
 
 	// ============ EFFECTS ============
 
-	// Update text style when user logs in and their saved style is loaded from DB
+	// Update text style when user logs in - fetch preferences directly from API
 	$effect(() => {
+		const _styleFetchNonce = styleFetchNonce;
+		if (_styleFetchNonce < 0) return;
 		const userId = currentUser?.id ?? null;
+		const defaultStyleJson = JSON.stringify(DEFAULT_TEXT_STYLE);
+		const initialStyleJson = JSON.stringify(initialTextStyle ?? DEFAULT_TEXT_STYLE);
+
+		if (initialStyleJson !== lastInitialStyleJson) {
+			lastInitialStyleJson = initialStyleJson;
+			currentTextStyle = {
+				...DEFAULT_TEXT_STYLE,
+				...(initialTextStyle ?? DEFAULT_TEXT_STYLE),
+				color: (initialTextStyle?.color ?? DEFAULT_TEXT_STYLE.color) || '#000000'
+			};
+			if (!currentUser) {
+				hasAppliedUserStyle = false;
+			} else if (initialStyleJson !== defaultStyleJson) {
+				hasAppliedUserStyle = true;
+			}
+		}
 
 		// User changed (logged in or different user)
 		if (userId !== lastUserId) {
 			lastUserId = userId;
 			hasAppliedUserStyle = false;
+			styleFetchAttempts = 0;
+			styleFetchInFlight = false;
 		}
 
-		// Apply user's saved style when they log in (initialTextStyle prop updated via invalidateAll)
-		if (currentUser && !hasAppliedUserStyle && initialTextStyle) {
-			hasAppliedUserStyle = true;
-			currentTextStyle = {
-				...DEFAULT_TEXT_STYLE,
-				...initialTextStyle,
-				color: initialTextStyle.color || '#000000'
-			};
+		// Fetch and apply user's saved style when they log in
+		if (!currentUser || hasAppliedUserStyle || styleFetchInFlight || !browser) return;
+
+		let isActive = true;
+		const activeUserId = currentUser.id;
+		const attempt = styleFetchAttempts + 1;
+		styleFetchAttempts = attempt;
+		styleFetchInFlight = true;
+		// Fetch user preferences directly to avoid timing issues with invalidateAll
+		api.textPreferences
+			.get()
+			.then((prefs) => {
+				if (!isActive || currentUser?.id !== activeUserId) return;
+				if (!prefs?.defaultStyle) return;
+				currentTextStyle = {
+					...DEFAULT_TEXT_STYLE,
+					...prefs.defaultStyle,
+					color: prefs.defaultStyle.color || '#000000'
+				};
+				hasAppliedUserStyle = true;
+			})
+			.finally(() => {
+				if (!isActive || currentUser?.id !== activeUserId) return;
+				if (!hasAppliedUserStyle && attempt < 3) {
+					const retryDelay = Math.min(1500, 300 * attempt);
+					window.setTimeout(() => {
+						styleFetchInFlight = false;
+						styleFetchNonce += 1;
+					}, retryDelay);
+					return;
+				}
+				styleFetchInFlight = false;
+			});
+
+		return () => {
+			isActive = false;
+		};
+	});
+
+	// Save text style to database when it changes (after initial load)
+	let lastSavedStyleJson = $state<string | null>(null);
+	$effect(() => {
+		// Only save if user is logged in and style has been initialized
+		if (!currentUser || !hasAppliedUserStyle || !browser) return;
+
+		const styleJson = JSON.stringify(currentTextStyle);
+
+		// Skip if this is the initial load (set lastSavedStyleJson to current)
+		if (lastSavedStyleJson === null) {
+			lastSavedStyleJson = styleJson;
+			return;
+		}
+
+		// Only save if style actually changed
+		if (styleJson !== lastSavedStyleJson) {
+			lastSavedStyleJson = styleJson;
+			debouncedSaveTextStyle(currentTextStyle);
 		}
 	});
 
-	// Auto-scroll to bottom when new messages arrive
-	$effect(() => {
-		if (messages.length > lastMessageCount && messages.length > 0) {
-			lastMessageCount = messages.length;
-			if (browser && chatArea) {
-				tick().then(() => {
-					if (chatArea) {
-						chatArea.scrollTop = chatArea.scrollHeight;
-					}
-				});
-			}
-		}
-	});
+	// Auto-scroll to bottom when new messages arrive (Svelte 5 recommended pattern)
+	$effect.pre(() => {
+		if (!browser || !chatArea) return;
 
-	// Scroll to bottom on initial load (when chatArea becomes available and messages exist)
-	$effect(() => {
-		if (browser && chatArea && messages.length > 0 && !isInitialLoading) {
-			// Only run once on initial load by checking if we haven't scrolled yet
-			if (chatArea.scrollTop === 0 && chatArea.scrollHeight > chatArea.clientHeight) {
-				tick().then(() => {
-					if (chatArea) {
-						chatArea.scrollTop = chatArea.scrollHeight;
-					}
-				});
-			}
+		// Reference visibleMessages so effect re-runs when messages change
+		const latestMessage = visibleMessages[visibleMessages.length - 1];
+		if (!latestMessage) return;
+		const firstMessage = visibleMessages[0];
+		const messageSignature = `${firstMessage?.id ?? 'none'}:${latestMessage.id}:${visibleMessages.length}`;
+		const hasMessageUpdate = messageSignature !== lastMessageSignature;
+		lastMessageSignature = messageSignature;
+
+		const isNearBottom = chatArea.scrollTop + chatArea.offsetHeight >= chatArea.scrollHeight - 40;
+
+		// Scroll to bottom on initial load OR when messages update (if user was near bottom)
+		if (!hasInitialScrolled || (hasMessageUpdate && isNearBottom)) {
+			hasInitialScrolled = true;
+			tick().then(() => {
+				if (chatArea) {
+					chatArea.scrollTo(0, chatArea.scrollHeight);
+				}
+			});
 		}
 	});
 
@@ -559,17 +632,18 @@
 	// Debounced function to update the server with last read mention timestamp
 	const debouncedUpdateMentionTimestamp = debounce(async (timestamp: number) => {
 		if (!currentUser || !browser) return;
-		try {
-			await fetch('/api/chat/mention-read', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify({ timestamp })
-			});
-		} catch (error) {
-			console.error('Failed to update mention read timestamp:', error);
-		}
+		await api.mentions.markRead(timestamp);
 	}, 1000);
+
+	// Debounced function to save text style preferences to the database
+	const debouncedSaveTextStyle = debounce(async (style: TextStyle) => {
+		if (!currentUser || !browser) return;
+		await api.textPreferences.save({
+			defaultStyle: style,
+			allowFormatting: true,
+			maxMessageLength: MAX_MESSAGE_LENGTH
+		});
+	}, 1500);
 
 	function setsEqual(a: Set<string>, b: Set<string>) {
 		if (a.size !== b.size) return false;
@@ -800,26 +874,19 @@
 
 		isSendingMessage = true;
 		try {
-			const response = await fetch('/api/chat/messages', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify({
-					content: currentMessage,
-					type: 'chat',
-					userId: currentUser.id,
-					chatRoomId: roomId,
-					styleData: currentTextStyle ? JSON.stringify(currentTextStyle) : undefined
-				})
+			const result = await api.chat.sendMessage({
+				content: currentMessage,
+				type: 'chat',
+				userId: currentUser.id,
+				chatRoomId: roomId,
+				styleData: currentTextStyle ? JSON.stringify(currentTextStyle) : undefined
 			});
 
-			const data = await response.json();
-
-			if (!data.success && data.isRateLimited && data.retryAfter) {
-				startCooldownTimer(data.retryAfter);
+			if (!result.success && result.isRateLimited && result.retryAfter) {
+				startCooldownTimer(result.retryAfter);
 				rateLimitWarning = "Whoa there! You're sending messages too quickly. Take a breather...";
-			} else if (!data.success) {
-				rateLimitWarning = data.error || 'Failed to send message. Please try again.';
+			} else if (!result.success) {
+				rateLimitWarning = result.error || 'Failed to send message. Please try again.';
 				setTimeout(() => (rateLimitWarning = null), 3000);
 			} else {
 				currentMessage = '';
@@ -880,47 +947,40 @@
 	}
 
 	async function handleScroll(event: Event) {
-		const chatArea = event.target as HTMLElement;
-		const { scrollTop } = chatArea;
+		const target = event.target as HTMLElement;
+		const { scrollTop } = target;
 
-		if (scrollTop < 100 && !isLoadingMore && hasMoreMessages && roomId) {
+		if (scrollTop < 100 && !isLoadingMore && hasMoreMessages && roomId && chatArea && currentUser) {
 			isLoadingMore = true;
-			const scrollHeight = chatArea.scrollHeight;
-			const currentScrollTop = chatArea.scrollTop;
+			const prevScrollHeight = chatArea.scrollHeight;
+			const prevScrollTop = chatArea.scrollTop;
 
 			try {
-				// Build query string manually to avoid URLSearchParams (svelte reactivity compliance)
-				const queryParts = [
-					`before=${encodeURIComponent(oldestMessageTimestamp?.toString() || '')}`,
-					`roomId=${encodeURIComponent(roomId)}`
-				];
-				if (!currentUser) queryParts.push('public=true');
-				const queryString = queryParts.join('&');
+				const fetchLimit = currentUser ? 100 : 50;
+				const data = await convexClient.query(convexApi.queries.getMessagesPublicPage, {
+					roomId,
+					limit: fetchLimit,
+					beforeTimestamp: oldestMessageTimestamp ?? undefined
+				});
 
-				const response = await fetch(`/api/chat/messages?${queryString}`);
+				if (data.messages.length === 0) {
+					hasMoreMessages = false;
+				} else {
+					const fetchedMessages = data.messages as Message[];
+					mergePagedMessages(fetchedMessages);
 
-				if (response.ok) {
-					const data = await response.json();
-					if (data.success) {
-						if (data.messages.length === 0) {
-							hasMoreMessages = false;
-						} else {
-							const fetchedMessages = data.messages as Message[];
-							mergePagedMessages(fetchedMessages);
+					requestAnimationFrame(() => {
+						if (!chatArea) return;
+						const newScrollHeight = chatArea.scrollHeight;
+						const heightDifference = newScrollHeight - prevScrollHeight;
+						chatArea.scrollTop = prevScrollTop + heightDifference;
+					});
 
-							requestAnimationFrame(() => {
-								const newScrollHeight = chatArea.scrollHeight;
-								const heightDifference = newScrollHeight - scrollHeight;
-								chatArea.scrollTop = currentScrollTop + heightDifference;
-							});
-
-							const newOldest = Math.min(...fetchedMessages.map((m) => m.timestamp));
-							oldestMessageTimestamp = oldestMessageTimestamp
-								? Math.min(oldestMessageTimestamp, newOldest)
-								: newOldest;
-							hasMoreMessages = data.hasMore;
-						}
-					}
+					const newOldest = Math.min(...fetchedMessages.map((m) => m.timestamp));
+					oldestMessageTimestamp = oldestMessageTimestamp
+						? Math.min(oldestMessageTimestamp, newOldest)
+						: newOldest;
+					hasMoreMessages = data.hasMore;
 				}
 			} catch (error) {
 				console.error('Error loading more messages:', error);

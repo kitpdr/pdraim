@@ -7,7 +7,8 @@ import {
 } from '$lib/types/text-formatting';
 import convex from '$lib/db/convex.server';
 
-export const load: PageServerLoad = async ({ cookies }) => {
+export const load: PageServerLoad = async ({ cookies, depends }) => {
+	depends('app:session');
 	const token = cookies.get('session');
 
 	if (!token) {

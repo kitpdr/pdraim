@@ -26,13 +26,18 @@ function computeEffectiveStatus(
 // ============ PUBLIC QUERIES (no auth required) ============
 
 // Public query: Get messages for a chat room (real-time subscription)
+// Max 100 messages for public/unauthenticated users
+const PUBLIC_MESSAGE_LIMIT = 100;
+
 export const getMessagesPublic = query({
 	args: {
 		roomId: v.id('chatRooms'),
 		limit: v.optional(v.number())
 	},
 	handler: async (ctx, args) => {
-		const limit = args.limit ?? 50;
+		// Enforce max limit and clamp to a safe positive integer
+		const rawLimit = args.limit ?? PUBLIC_MESSAGE_LIMIT;
+		const limit = Math.max(1, Math.min(PUBLIC_MESSAGE_LIMIT, Math.floor(rawLimit)));
 
 		const messages = await ctx.db
 			.query('messages')
@@ -67,6 +72,46 @@ export const getMessagesPublic = query({
 
 		// Return in chronological order (oldest first)
 		return enrichedMessages.reverse();
+	}
+});
+
+// Public query: Get paginated messages for a chat room (older history)
+export const getMessagesPublicPage = query({
+	args: {
+		roomId: v.id('chatRooms'),
+		limit: v.optional(v.number()),
+		beforeTimestamp: v.optional(v.number())
+	},
+	handler: async (ctx, args) => {
+		const rawLimit = args.limit ?? 50;
+		const limit = Math.max(1, Math.min(PUBLIC_MESSAGE_LIMIT, Math.floor(rawLimit)));
+
+		let query = ctx.db
+			.query('messages')
+			.withIndex('by_chatRoom', (q) => q.eq('chatRoomId', args.roomId))
+			.order('desc');
+
+		const beforeTimestamp = args.beforeTimestamp;
+		if (beforeTimestamp !== undefined) {
+			query = query.filter((q) => q.lt(q.field('timestamp'), beforeTimestamp));
+		}
+
+		const messages = await query.take(limit + 1);
+		const page = messages.slice(0, limit);
+
+		return {
+			messages: page.map((msg) => ({
+				id: msg._id,
+				chatRoomId: msg.chatRoomId,
+				senderId: msg.senderId,
+				content: msg.content,
+				type: msg.type,
+				timestamp: msg.timestamp,
+				styleData: msg.styleData,
+				hasFormatting: msg.hasFormatting
+			})),
+			hasMore: messages.length > limit
+		};
 	}
 });
 
@@ -127,13 +172,14 @@ export const getMessages = authQuery({
 		limit: v.optional(v.number())
 	},
 	handler: async (ctx, args) => {
-		const limit = args.limit ?? 100;
-
-		const messages = await ctx.db
+		const rawLimit = args.limit ?? 100;
+		const limit = Math.max(1, Math.floor(rawLimit));
+		const query = ctx.db
 			.query('messages')
 			.withIndex('by_chatRoom', (q) => q.eq('chatRoomId', args.roomId))
-			.order('desc')
-			.take(limit);
+			.order('desc');
+
+		const messages = await query.take(limit);
 
 		// Enrich messages with sender info
 		const enrichedMessages = await Promise.all(
