@@ -7,6 +7,7 @@
 	import { onMount, tick } from 'svelte';
 	import { SvelteSet, SvelteMap } from 'svelte/reactivity';
 	import { browser } from '$app/environment';
+	import { PUBLIC_CONVEX_URL } from '$env/static/public';
 	import { api } from '$lib/api/client';
 	import { draggable } from '$lib/actions/draggable';
 	import { resizable } from '$lib/actions/resizable';
@@ -39,27 +40,31 @@
 		initialTextStyle?: TextStyle;
 	}>();
 
+	const isClient = browser && Boolean(PUBLIC_CONVEX_URL);
+
 	// ============ CONVEX REAL-TIME SUBSCRIPTIONS ============
 
 	// Subscribe to default room (to get room ID)
-	const defaultRoomQuery = useQuery(convexApi.queries.getDefaultRoomPublic, {});
+	const defaultRoomQuery = isClient ? useQuery(convexApi.queries.getDefaultRoomPublic, {}) : null;
 
 	// Subscribe to users (buddy list) - real-time updates
-	const usersQuery = useQuery(convexApi.queries.getUsersPublic, {});
+	const usersQuery = isClient ? useQuery(convexApi.queries.getUsersPublic, {}) : null;
 
 	// Room ID from Convex query
-	const roomId = $derived(defaultRoomQuery.data?.id as Id<'chatRooms'> | undefined);
+	const roomId = $derived(defaultRoomQuery?.data?.id as Id<'chatRooms'> | undefined);
 
 	// Subscribe to messages - only when room ID is available
 	const messagesQuery = $derived(
-		roomId ? useQuery(convexApi.queries.getMessagesPublic, () => ({ roomId: roomId! })) : null
+		roomId && isClient
+			? useQuery(convexApi.queries.getMessagesPublic, () => ({ roomId: roomId! }))
+			: null
 	);
 
-	const convexClient = useConvexClient();
+	const convexClient = isClient ? useConvexClient() : null;
 
 	// Transform Convex users to SafeUser format
 	const onlineUsers = $derived.by<SafeUser[]>(() => {
-		if (!usersQuery.data) return [];
+		if (!usersQuery?.data) return [];
 		return usersQuery.data
 			.map((u) => ({
 				id: u.id,
@@ -122,11 +127,13 @@
 
 	// Loading and error states from Convex
 	const isInitialLoading = $derived(
-		defaultRoomQuery.isLoading || usersQuery.isLoading || messagesQuery?.isLoading
+		(defaultRoomQuery?.isLoading ?? false) ||
+			(usersQuery?.isLoading ?? false) ||
+			(messagesQuery?.isLoading ?? false)
 	);
 	const connectionError = $derived.by<string | null>(() => {
-		if (defaultRoomQuery.error) return 'Erreur de connexion au salon';
-		if (usersQuery.error) return 'Erreur de chargement des utilisateurs';
+		if (defaultRoomQuery?.error) return 'Erreur de connexion au salon';
+		if (usersQuery?.error) return 'Erreur de chargement des utilisateurs';
 		if (messagesQuery?.error) return 'Erreur de chargement des messages';
 		return null;
 	});
@@ -950,7 +957,15 @@
 		const target = event.target as HTMLElement;
 		const { scrollTop } = target;
 
-		if (scrollTop < 100 && !isLoadingMore && hasMoreMessages && roomId && chatArea && currentUser) {
+		if (
+			scrollTop < 100 &&
+			!isLoadingMore &&
+			hasMoreMessages &&
+			roomId &&
+			chatArea &&
+			currentUser &&
+			convexClient
+		) {
 			isLoadingMore = true;
 			const prevScrollHeight = chatArea.scrollHeight;
 			const prevScrollTop = chatArea.scrollTop;

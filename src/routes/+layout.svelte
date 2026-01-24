@@ -1,16 +1,14 @@
 <script lang="ts">
 	import '../app.css';
 	import { setupConvex } from 'convex-svelte';
-	import { env } from '$env/dynamic/public';
+	import { PUBLIC_CONVEX_URL } from '$env/static/public';
 	import { chatState } from '$lib/states/chat.svelte';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 
 	// Initialize Convex client for real-time subscriptions
-	if (browser && env.PUBLIC_CONVEX_URL) {
-		setupConvex(env.PUBLIC_CONVEX_URL);
-	} else if (browser && !env.PUBLIC_CONVEX_URL) {
-		console.error('Missing PUBLIC_CONVEX_URL for Convex client setup');
+	if (PUBLIC_CONVEX_URL) {
+		setupConvex(PUBLIC_CONVEX_URL);
 	}
 
 	let { children, data } = $props();
