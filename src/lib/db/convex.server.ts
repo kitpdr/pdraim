@@ -1,9 +1,9 @@
-import { env } from '$env/dynamic/private';
-import { PUBLIC_CONVEX_URL } from '$env/static/public';
+import { env as privateEnv } from '$env/dynamic/private';
+import { env as publicEnv } from '$env/dynamic/public';
 
 // Convert .cloud URL to .site URL for HTTP actions
 function getHttpUrl(): string {
-	return PUBLIC_CONVEX_URL.replace('.convex.cloud', '.convex.site');
+	return publicEnv.PUBLIC_CONVEX_URL.replace('.convex.cloud', '.convex.site');
 }
 
 // Generic fetch helper for Convex HTTP endpoints (server-side only)
@@ -14,7 +14,7 @@ async function convexFetch<T>(path: string, body: Record<string, unknown> = {}):
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			'X-Convex-Secret': env.CONVEX_API_SECRET || ''
+			'X-Convex-Secret': privateEnv.CONVEX_API_SECRET || ''
 		},
 		body: JSON.stringify(body)
 	});

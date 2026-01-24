@@ -1,13 +1,13 @@
 <script lang="ts">
 	import '../app.css';
 	import { setupConvex } from 'convex-svelte';
-	import { PUBLIC_CONVEX_URL } from '$env/static/public';
+	import { env } from '$env/dynamic/public';
 	import { chatState } from '$lib/states/chat.svelte';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 
 	// Initialize Convex client for real-time subscriptions
-	setupConvex(PUBLIC_CONVEX_URL);
+	setupConvex(env.PUBLIC_CONVEX_URL);
 
 	let { children, data } = $props();
 	let isVisible = $state(true);
