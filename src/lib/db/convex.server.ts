@@ -3,7 +3,11 @@ import { env as publicEnv } from '$env/dynamic/public';
 
 // Convert .cloud URL to .site URL for HTTP actions
 function getHttpUrl(): string {
-	return publicEnv.PUBLIC_CONVEX_URL.replace('.convex.cloud', '.convex.site');
+	const baseUrl = publicEnv.PUBLIC_CONVEX_URL ?? privateEnv.PUBLIC_CONVEX_URL;
+	if (!baseUrl) {
+		throw new Error('PUBLIC_CONVEX_URL is not set');
+	}
+	return baseUrl.replace('.convex.cloud', '.convex.site');
 }
 
 // Generic fetch helper for Convex HTTP endpoints (server-side only)
