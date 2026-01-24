@@ -7,7 +7,11 @@
 	import { browser } from '$app/environment';
 
 	// Initialize Convex client for real-time subscriptions
-	setupConvex(env.PUBLIC_CONVEX_URL);
+	if (browser && env.PUBLIC_CONVEX_URL) {
+		setupConvex(env.PUBLIC_CONVEX_URL);
+	} else if (browser && !env.PUBLIC_CONVEX_URL) {
+		console.error('Missing PUBLIC_CONVEX_URL for Convex client setup');
+	}
 
 	let { children, data } = $props();
 	let isVisible = $state(true);
