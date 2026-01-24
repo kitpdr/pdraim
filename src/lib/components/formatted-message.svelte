@@ -236,9 +236,9 @@
 		color: inherit;
 	}
 
-	/* Mention token styling */
+	/* Mention token styling - inherits message color/font, just adds bold */
 	:global(.mention-token) {
-		color: #1e2a72;
+		color: inherit;
 		font-weight: bold;
 	}
 
