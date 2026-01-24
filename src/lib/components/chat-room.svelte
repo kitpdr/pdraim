@@ -5,7 +5,7 @@
 	import type { Id } from '../../convex/_generated/dataModel';
 	import type { Message, EnrichedMessage, SafeUser } from '../types/chat';
 	import { onMount, tick } from 'svelte';
-	import { SvelteSet } from 'svelte/reactivity';
+	import { SvelteSet, SvelteMap } from 'svelte/reactivity';
 	import { browser } from '$app/environment';
 	import { draggable } from '$lib/actions/draggable';
 	import { resizable } from '$lib/actions/resizable';
@@ -394,7 +394,7 @@
 			mentionObserver.disconnect();
 		}
 		// Precompute message timestamp map to avoid O(n) lookup in callback
-		const messageTimestampMap = new Map<string, number>();
+		const messageTimestampMap = new SvelteMap<string, number>();
 		for (const msg of visibleMessages) {
 			messageTimestampMap.set(msg.id, msg.timestamp);
 		}
