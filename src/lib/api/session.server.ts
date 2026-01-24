@@ -92,7 +92,8 @@ export async function validateSessionToken(token: string): Promise<SessionValida
 		nickname: result.user.nickname,
 		status: result.user.status as SafeUser['status'],
 		avatarUrl: result.user.avatarUrl,
-		lastSeen: result.user.lastSeen
+		lastSeen: result.user.lastSeen,
+		lastReadMentionTimestamp: result.user.lastReadMentionTimestamp
 	};
 
 	log.debug('Session validated', { tokenHash, userId: user.id });

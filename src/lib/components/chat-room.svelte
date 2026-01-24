@@ -348,6 +348,8 @@
 			if (mentionUnreadCount !== 0) {
 				mentionUnreadCount = 0;
 			}
+			// Reset pending timestamp when user logs out
+			pendingMentionTimestamp = null;
 			// mention observer reset
 			if (mentionObserver) {
 				mentionObserver.disconnect();
@@ -357,15 +359,20 @@
 		}
 		const mentionIds = new SvelteSet<string>();
 		const lastReadTimestamp = currentUser.lastReadMentionTimestamp ?? 0;
+		const mentionIdsToPreObserve: string[] = [];
 
 		for (const message of visibleMessages) {
 			if (shouldHighlightMention(message)) {
 				mentionIds.add(message.id);
 				// Pre-mark as observed if message is older than lastReadMentionTimestamp
 				if (message.timestamp <= lastReadTimestamp && !mentionObservedIds.has(message.id)) {
-					mentionObservedIds = new SvelteSet([...mentionObservedIds, message.id]);
+					mentionIdsToPreObserve.push(message.id);
 				}
 			}
+		}
+		// Batch update observed IDs to avoid repeated Set allocations
+		if (mentionIdsToPreObserve.length > 0) {
+			mentionObservedIds = new SvelteSet([...mentionObservedIds, ...mentionIdsToPreObserve]);
 		}
 		const nextMentionIds = mentionIds;
 		if (!setsEqual(nextMentionIds, mentionMessageIds)) {
@@ -386,6 +393,11 @@
 		if (mentionObserver) {
 			mentionObserver.disconnect();
 		}
+		// Precompute message timestamp map to avoid O(n) lookup in callback
+		const messageTimestampMap = new Map<string, number>();
+		for (const msg of visibleMessages) {
+			messageTimestampMap.set(msg.id, msg.timestamp);
+		}
 		mentionObserver = new IntersectionObserver(
 			(entries) => {
 				const updatedObserved = new SvelteSet(mentionObservedIds);
@@ -402,10 +414,10 @@
 						updatedObserved.add(messageId);
 						changed = true;
 
-						// Find the message to get its timestamp
-						const message = visibleMessages.find((m) => m.id === messageId);
-						if (message && message.timestamp > maxTimestamp) {
-							maxTimestamp = message.timestamp;
+						// Get timestamp from precomputed map (O(1) instead of O(n))
+						const timestamp = messageTimestampMap.get(messageId);
+						if (timestamp !== undefined && timestamp > maxTimestamp) {
+							maxTimestamp = timestamp;
 						}
 					}
 				}

@@ -32,6 +32,16 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			});
 		}
 
+		// Prevent far-future timestamps that could suppress notifications permanently
+		const now = Date.now();
+		const maxSkewMs = 5 * 60 * 1000; // 5 minutes clock skew tolerance
+		if (timestamp > now + maxSkewMs) {
+			return new Response(JSON.stringify({ error: 'Timestamp too far in the future' }), {
+				status: 400,
+				headers: { 'Content-Type': 'application/json' }
+			});
+		}
+
 		await users.updateLastReadMentionTimestamp(user.id, timestamp);
 
 		return new Response(JSON.stringify({ success: true }), {
