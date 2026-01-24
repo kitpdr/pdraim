@@ -49,7 +49,7 @@ function updateUserCooldown(userId: string): { canSend: boolean; retryAfter?: nu
 export const GET: RequestHandler = async ({ url, locals }) => {
 	const beforeTimestamp = url.searchParams.get('before');
 	const roomIdParam = url.searchParams.get('roomId');
-	const isPublic = url.searchParams.get('public') === 'true';
+	const isPublic = url.searchParams.get('public') === 'true' || !locals.session;
 
 	// Use default room if not specified
 	const roomId = roomIdParam || getDefaultChatRoomId();
@@ -67,7 +67,19 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			isPublic
 		});
 
-		const fetchLimit = isPublic || !locals.session ? 50 : 100;
+		if (isPublic && beforeTimestamp) {
+			const response: GetMessagesResponse = {
+				success: true,
+				messages: [],
+				hasMore: false
+			};
+
+			return new Response(JSON.stringify(response), {
+				headers: { 'Content-Type': 'application/json' }
+			});
+		}
+
+		const fetchLimit = 100;
 
 		const result = await messages.getByRoom(
 			roomId,
