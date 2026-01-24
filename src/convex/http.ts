@@ -160,6 +160,30 @@ http.route({
 	})
 });
 
+// Update last read mention timestamp
+http.route({
+	path: '/api/users/updateLastReadMentionTimestamp',
+	method: 'POST',
+	handler: httpAction(async (ctx, request) => {
+		if (!validateSecret(request)) return unauthorizedResponse();
+
+		const body = await parseJsonBody<{ userId: string; timestamp: number }>(request);
+		if (!body) return errorResponse('Invalid JSON', 400);
+
+		try {
+			const result = await ctx.runMutation(internal.usersInternal.updateLastReadMentionTimestamp, {
+				id: body.userId as Id<'users'>,
+				timestamp: body.timestamp
+			});
+			return new Response(JSON.stringify(result), {
+				headers: { 'Content-Type': 'application/json' }
+			});
+		} catch (e) {
+			return errorResponse(e instanceof Error ? e.message : 'Failed to update timestamp');
+		}
+	})
+});
+
 // ============ SESSIONS (server-side only) ============
 
 // Create session - for login

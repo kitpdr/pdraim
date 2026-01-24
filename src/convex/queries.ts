@@ -237,7 +237,8 @@ export const getCurrentUser = authQuery({
 			nickname: ctx.user.nickname,
 			status: ctx.user.status,
 			avatarUrl: ctx.user.avatarUrl,
-			lastSeen: ctx.user.lastSeen
+			lastSeen: ctx.user.lastSeen,
+			lastReadMentionTimestamp: ctx.user.lastReadMentionTimestamp
 		};
 	}
 });

@@ -7,6 +7,7 @@ export interface User {
 	avatarUrl?: string | null;
 	createdAt: number; // Timestamp (e.g., Unix timestamp)
 	lastSeen?: number | null; // Optional last active timestamp
+	lastReadMentionTimestamp?: number | null; // Timestamp of last read mention
 }
 
 export type UserStatus = 'offline' | 'online' | 'away' | string;
@@ -43,7 +44,8 @@ export function createSafeUser(
 		nickname: user.nickname,
 		status: user.status,
 		avatarUrl: user.avatarUrl,
-		lastSeen: user.lastSeen ?? 0
+		lastSeen: user.lastSeen ?? 0,
+		lastReadMentionTimestamp: user.lastReadMentionTimestamp ?? null
 	};
 	return safeUser;
 }

@@ -153,12 +153,15 @@
 
 	let currentMessage = $state('');
 	let inputScrollLeft = $state(0);
-	// Initialize text style with prop value (intentionally capturing initial value only)
+	// Initialize text style with prop value
 	let currentTextStyle = $state<TextStyle>({
 		...DEFAULT_TEXT_STYLE,
 		...initialTextStyle,
 		color: initialTextStyle.color || '#000000'
 	});
+	// Track if we've applied user's style from DB (to avoid resetting on every prop change)
+	let hasAppliedUserStyle = $state(false);
+	let lastUserId = $state<string | null>(null);
 
 	// ============ MENTION STATE ============
 
@@ -172,6 +175,7 @@
 	let mentionUnreadCount = $state(0);
 	let mentionDismissKey = $state<string | null>(null);
 	let mentionObserver: IntersectionObserver | null = null;
+	let pendingMentionTimestamp = $state<number | null>(null);
 
 	let baseTitle = $state('');
 	const mentionListBoxId = `mentions-${Math.random().toString(36).slice(2, 8)}`;
@@ -266,11 +270,46 @@
 
 	// ============ EFFECTS ============
 
+	// Update text style when user logs in and their saved style is loaded from DB
+	$effect(() => {
+		const userId = currentUser?.id ?? null;
+
+		// User changed (logged in or different user)
+		if (userId !== lastUserId) {
+			lastUserId = userId;
+			hasAppliedUserStyle = false;
+		}
+
+		// Apply user's saved style when they log in (initialTextStyle prop updated via invalidateAll)
+		if (currentUser && !hasAppliedUserStyle && initialTextStyle) {
+			hasAppliedUserStyle = true;
+			currentTextStyle = {
+				...DEFAULT_TEXT_STYLE,
+				...initialTextStyle,
+				color: initialTextStyle.color || '#000000'
+			};
+		}
+	});
+
 	// Auto-scroll to bottom when new messages arrive
 	$effect(() => {
 		if (messages.length > lastMessageCount && messages.length > 0) {
 			lastMessageCount = messages.length;
 			if (browser && chatArea) {
+				tick().then(() => {
+					if (chatArea) {
+						chatArea.scrollTop = chatArea.scrollHeight;
+					}
+				});
+			}
+		}
+	});
+
+	// Scroll to bottom on initial load (when chatArea becomes available and messages exist)
+	$effect(() => {
+		if (browser && chatArea && messages.length > 0 && !isInitialLoading) {
+			// Only run once on initial load by checking if we haven't scrolled yet
+			if (chatArea.scrollTop === 0 && chatArea.scrollHeight > chatArea.clientHeight) {
 				tick().then(() => {
 					if (chatArea) {
 						chatArea.scrollTop = chatArea.scrollHeight;
@@ -317,9 +356,15 @@
 			return;
 		}
 		const mentionIds = new SvelteSet<string>();
+		const lastReadTimestamp = currentUser.lastReadMentionTimestamp ?? 0;
+
 		for (const message of visibleMessages) {
 			if (shouldHighlightMention(message)) {
 				mentionIds.add(message.id);
+				// Pre-mark as observed if message is older than lastReadMentionTimestamp
+				if (message.timestamp <= lastReadTimestamp && !mentionObservedIds.has(message.id)) {
+					mentionObservedIds = new SvelteSet([...mentionObservedIds, message.id]);
+				}
 			}
 		}
 		const nextMentionIds = mentionIds;
@@ -347,6 +392,8 @@
 				let changed = false;
 				const currentObserved = mentionObservedIds;
 				const currentUnread = mentionUnreadCount;
+				let maxTimestamp = pendingMentionTimestamp ?? 0;
+
 				for (const entry of entries) {
 					const target = entry.target as HTMLElement;
 					const messageId = target.dataset.messageId;
@@ -354,6 +401,12 @@
 					if (entry.isIntersecting && !updatedObserved.has(messageId)) {
 						updatedObserved.add(messageId);
 						changed = true;
+
+						// Find the message to get its timestamp
+						const message = visibleMessages.find((m) => m.id === messageId);
+						if (message && message.timestamp > maxTimestamp) {
+							maxTimestamp = message.timestamp;
+						}
 					}
 				}
 				if (changed && !setsEqual(updatedObserved, currentObserved)) {
@@ -361,6 +414,12 @@
 					const nextUnread = Math.max(0, currentMentionIds.size - updatedObserved.size);
 					if (currentUnread !== nextUnread) {
 						mentionUnreadCount = nextUnread;
+					}
+
+					// Update the server with the new max timestamp
+					if (maxTimestamp > (pendingMentionTimestamp ?? 0)) {
+						pendingMentionTimestamp = maxTimestamp;
+						debouncedUpdateMentionTimestamp(maxTimestamp);
 					}
 				}
 			},
@@ -484,6 +543,21 @@
 	}
 
 	const debouncedSaveWindowState = debounce(saveWindowState, 300);
+
+	// Debounced function to update the server with last read mention timestamp
+	const debouncedUpdateMentionTimestamp = debounce(async (timestamp: number) => {
+		if (!currentUser || !browser) return;
+		try {
+			await fetch('/api/chat/mention-read', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({ timestamp })
+			});
+		} catch (error) {
+			console.error('Failed to update mention read timestamp:', error);
+		}
+	}, 1000);
 
 	function setsEqual(a: Set<string>, b: Set<string>) {
 		if (a.size !== b.size) return false;

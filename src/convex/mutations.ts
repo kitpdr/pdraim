@@ -113,3 +113,22 @@ export const getOrCreateDefaultRoom = mutation({
 		};
 	}
 });
+
+// Authenticated mutation: Update the timestamp of the last read mention
+export const updateLastReadMentionTimestamp = authMutation({
+	args: {
+		timestamp: v.number()
+	},
+	handler: async (ctx, args) => {
+		const currentTimestamp = ctx.user.lastReadMentionTimestamp ?? 0;
+
+		// Only update if the new timestamp is greater (more recent)
+		if (args.timestamp > currentTimestamp) {
+			await ctx.db.patch(ctx.user._id, {
+				lastReadMentionTimestamp: args.timestamp
+			});
+		}
+
+		return { success: true };
+	}
+});

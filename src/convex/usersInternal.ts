@@ -94,6 +94,31 @@ export const setAllOffline = internalMutation({
 	}
 });
 
+// Update last read mention timestamp (internal)
+export const updateLastReadMentionTimestamp = internalMutation({
+	args: {
+		id: v.id('users'),
+		timestamp: v.number()
+	},
+	handler: async (ctx, args) => {
+		const user = await ctx.db.get(args.id);
+		if (!user) {
+			throw new Error('User not found');
+		}
+
+		const currentTimestamp = user.lastReadMentionTimestamp ?? 0;
+
+		// Only update if the new timestamp is greater (more recent)
+		if (args.timestamp > currentTimestamp) {
+			await ctx.db.patch(args.id, {
+				lastReadMentionTimestamp: args.timestamp
+			});
+		}
+
+		return { success: true };
+	}
+});
+
 // Cleanup stale users who haven't sent a heartbeat in 2 minutes
 export const cleanupStaleUsers = internalMutation({
 	args: {},

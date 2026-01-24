@@ -8,7 +8,8 @@ export default defineSchema({
 		status: v.string(), // 'offline' | 'online' | 'away' | 'busy'
 		avatarUrl: v.optional(v.string()),
 		createdAt: v.number(),
-		lastSeen: v.optional(v.number())
+		lastSeen: v.optional(v.number()),
+		lastReadMentionTimestamp: v.optional(v.number()) // Timestamp of last read mention
 	})
 		.index('by_nickname', ['nickname'])
 		.index('by_status', ['status']),
