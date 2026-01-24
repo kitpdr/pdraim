@@ -7,7 +7,7 @@
 	import { onMount, tick } from 'svelte';
 	import { SvelteSet, SvelteMap } from 'svelte/reactivity';
 	import { browser } from '$app/environment';
-	import { PUBLIC_CONVEX_URL } from '$env/static/public';
+	import { env } from '$env/dynamic/public';
 	import { api } from '$lib/api/client';
 	import { draggable } from '$lib/actions/draggable';
 	import { resizable } from '$lib/actions/resizable';
@@ -40,7 +40,7 @@
 		initialTextStyle?: TextStyle;
 	}>();
 
-	const isClient = browser && Boolean(PUBLIC_CONVEX_URL);
+	const isClient = browser && Boolean(env.PUBLIC_CONVEX_URL);
 
 	// ============ CONVEX REAL-TIME SUBSCRIPTIONS ============
 
