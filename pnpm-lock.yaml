@@ -15,14 +15,14 @@ importers:
         specifier: ^0.562.0
         version: 0.562.0(svelte@5.46.4)
       convex:
-        specifier: ^1.31.5
-        version: 1.31.5
+        specifier: ^1.31.6
+        version: 1.31.6
       convex-helpers:
         specifier: ^0.1.111
-        version: 0.1.111(@standard-schema/spec@1.1.0)(convex@1.31.5)(typescript@5.9.3)(zod@4.3.5)
+        version: 0.1.111(@standard-schema/spec@1.1.0)(convex@1.31.6)(typescript@5.9.3)(zod@4.3.5)
       convex-svelte:
         specifier: ^0.0.12
-        version: 0.0.12(convex@1.31.5)(svelte@5.46.4)
+        version: 0.0.12(convex@1.31.6)(svelte@5.46.4)
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
@@ -1834,8 +1834,8 @@ packages:
       convex: ^1.10.0
       svelte: ^5.0.0
 
-  convex@1.31.5:
-    resolution: {integrity: sha512-E1IuJKFwMCHDToNGukBPs6c7RFaarR3t8chLF9n98TM5/Tgmj8lM6l7sKM1aJ3VwqGaB4wbeUAPY8osbCOXBhQ==}
+  convex@1.31.6:
+    resolution: {integrity: sha512-9cIsOzepa3s9DURRF+fZHxbNuzLgilg9XGQCc45v0Xx4FemqeIezpPFSJF9WHC9ckk43TDUUXLecvLVt9djPkw==}
     engines: {node: '>=18.0.0', npm: '>=7.0.0'}
     hasBin: true
     peerDependencies:
@@ -4556,22 +4556,22 @@ snapshots:
 
   concat-map@0.0.1: {}
 
-  convex-helpers@0.1.111(@standard-schema/spec@1.1.0)(convex@1.31.5)(typescript@5.9.3)(zod@4.3.5):
+  convex-helpers@0.1.111(@standard-schema/spec@1.1.0)(convex@1.31.6)(typescript@5.9.3)(zod@4.3.5):
     dependencies:
-      convex: 1.31.5
+      convex: 1.31.6
     optionalDependencies:
       '@standard-schema/spec': 1.1.0
       typescript: 5.9.3
       zod: 4.3.5
 
-  convex-svelte@0.0.12(convex@1.31.5)(svelte@5.46.4):
+  convex-svelte@0.0.12(convex@1.31.6)(svelte@5.46.4):
     dependencies:
-      convex: 1.31.5
+      convex: 1.31.6
       esm-env: 1.2.2
       runed: 0.31.1(svelte@5.46.4)
       svelte: 5.46.4
 
-  convex@1.31.5:
+  convex@1.31.6:
     dependencies:
       esbuild: 0.27.0
       prettier: 3.8.0
