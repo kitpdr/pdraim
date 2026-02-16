@@ -32,6 +32,11 @@ export default ts.config(
 			parserOptions: {
 				parser: ts.parser
 			}
+		},
+		rules: {
+			// False positive with Svelte 5 $bindable() — ESLint 10 flags the
+			// destructuring assignment as useless but Svelte's compiler uses it.
+			'no-useless-assignment': 'off'
 		}
 	},
 	{

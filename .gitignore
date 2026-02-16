@@ -28,3 +28,6 @@ docs/
 
 # Migration files (Turso to Convex)
 migration/
+
+# Plans
+docs/plans/
