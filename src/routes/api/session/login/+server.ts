@@ -112,7 +112,7 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 
 	// Verify password
 	try {
-		const isValid = await verifyPassword(password.trim(), user.password);
+		const isValid = await verifyPassword(password, user.password);
 		if (!isValid) {
 			attemptData.count++;
 			attemptData.lastAttempt = now;

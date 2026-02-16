@@ -105,7 +105,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 
 	// Trim input values (validation already done by Zod)
 	const username = suUsername.trim();
-	const password = suPassword.trim();
+	const password = suPassword;
 
 	// Check if nickname already exists using Convex
 	const existingUser = await users.getByNickname(username);
