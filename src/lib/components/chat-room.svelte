@@ -374,8 +374,8 @@
 		}
 	});
 
-	// Auto-scroll to bottom when new messages arrive (Svelte 5 recommended pattern)
-	$effect.pre(() => {
+	// Auto-scroll to bottom when new messages arrive
+	$effect(() => {
 		if (!browser || !chatArea) return;
 
 		// Reference visibleMessages so effect re-runs when messages change
@@ -391,7 +391,8 @@
 		// Scroll to bottom on initial load OR when messages update (if user was near bottom)
 		if (!hasInitialScrolled || (hasMessageUpdate && isNearBottom)) {
 			hasInitialScrolled = true;
-			tick().then(() => {
+			// Use rAF to ensure browser has completed layout after DOM update
+			requestAnimationFrame(() => {
 				if (chatArea) {
 					chatArea.scrollTo(0, chatArea.scrollHeight);
 				}

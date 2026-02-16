@@ -15,6 +15,7 @@ function addSecurityHeaders(response: Response): Response {
 	headers.set('X-Content-Type-Options', 'nosniff');
 	headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 	headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+	headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
 
 	return new Response(response.body, {
 		status: response.status,
@@ -86,21 +87,28 @@ export const handle: Handle = async ({ event, resolve }) => {
 		const origin = event.request.headers.get('origin');
 		const host = event.request.headers.get('host');
 
-		// Block cross-origin requests (origin header is present but doesn't match host)
-		if (origin) {
-			try {
-				const originUrl = new URL(origin);
-				if (originUrl.host !== host) {
-					log.warn('CSRF check failed - origin mismatch', {
-						origin: originUrl.host,
-						host
-					});
-					return new Response('Forbidden', { status: 403 });
-				}
-			} catch {
-				log.warn('CSRF check failed - invalid origin', { origin });
+		if (!origin) {
+			// Browsers always send Origin on state-changing requests.
+			// Missing Origin means non-browser client (curl, scripts).
+			log.warn('CSRF check failed - missing origin header', {
+				method: event.request.method,
+				path: event.url.pathname
+			});
+			return new Response('Forbidden', { status: 403 });
+		}
+
+		try {
+			const originUrl = new URL(origin);
+			if (originUrl.host !== host) {
+				log.warn('CSRF check failed - origin mismatch', {
+					origin: originUrl.host,
+					host
+				});
 				return new Response('Forbidden', { status: 403 });
 			}
+		} catch {
+			log.warn('CSRF check failed - invalid origin', { origin });
+			return new Response('Forbidden', { status: 403 });
 		}
 	}
 

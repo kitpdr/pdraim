@@ -10,22 +10,26 @@ const log = createLogger('register-server');
 // In-memory map to track failed captcha attempts per IP
 const captchaAttempts = new Map<string, { count: number; lastAttempt: number }>();
 
-// Cleanup old entries every hour
-setInterval(
-	() => {
-		const now = Date.now();
-		const ONE_HOUR = 60 * 60 * 1000;
-		for (const [ip, data] of captchaAttempts.entries()) {
-			if (now - data.lastAttempt > ONE_HOUR) {
-				captchaAttempts.delete(ip);
-			}
-		}
-	},
-	60 * 60 * 1000
-);
+// Lazy cleanup: Cloudflare Workers don't allow setInterval at global scope
+const ONE_HOUR = 60 * 60 * 1000;
+let lastCleanup = 0;
+function cleanupOldCaptchaAttempts() {
+	const now = Date.now();
+	if (now - lastCleanup < ONE_HOUR) return;
+	lastCleanup = now;
 
-export const POST: RequestHandler = async ({ request }) => {
+	for (const [ip, data] of captchaAttempts.entries()) {
+		if (now - data.lastAttempt > ONE_HOUR) {
+			captchaAttempts.delete(ip);
+		}
+	}
+}
+
+export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 	log.debug('New registration attempt received');
+
+	// Lazy cleanup on each request (replaces setInterval for Cloudflare compatibility)
+	cleanupOldCaptchaAttempts();
 
 	if (request.method !== 'POST') {
 		log.warn('Invalid method used', { method: request.method });
@@ -35,7 +39,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	// Get the IP address for rate limiting and Turnstile validation
-	const ip = request.headers.get('x-forwarded-for') || 'unknown';
+	const ip = getClientAddress();
 	const maskedIp = ip
 		.split('.')
 		.map((octet, idx) => (idx < 3 ? 'xxx' : octet))
@@ -81,6 +85,9 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	// Validate PDR captcha
+	// SECURITY NOTE: Static CAPTCHA answer is intentional for this community app.
+	// The answer "point de rencontre" acts as a shared-knowledge gate, not bot prevention.
+	// Bot prevention is handled by Cloudflare Turnstile (when enabled in production).
 	const normalizedAnswer = captchaAnswer.trim().toLowerCase();
 	if (normalizedAnswer !== 'point de rencontre') {
 		attemptData.count++;
@@ -98,7 +105,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	// Trim input values (validation already done by Zod)
 	const username = suUsername.trim();
-	const password = suPassword.trim();
+	const password = suPassword;
 
 	// Check if nickname already exists using Convex
 	const existingUser = await users.getByNickname(username);

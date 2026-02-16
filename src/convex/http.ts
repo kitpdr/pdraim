@@ -5,6 +5,23 @@ import type { Id } from './_generated/dataModel';
 
 const http = httpRouter();
 
+// Constant-time string comparison to prevent timing attacks
+function constantTimeCompare(a: string, b: string): boolean {
+	if (a.length !== b.length) {
+		// Still do work to avoid leaking length via timing
+		let result = a.length ^ b.length;
+		for (let i = 0; i < a.length; i++) {
+			result |= a.charCodeAt(i) ^ a.charCodeAt(i);
+		}
+		return result === 0; // always false when lengths differ
+	}
+	let result = 0;
+	for (let i = 0; i < a.length; i++) {
+		result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+	}
+	return result === 0;
+}
+
 // Validate the secret header for server-to-server calls
 function validateSecret(request: Request): boolean {
 	const secret = request.headers.get('X-Convex-Secret');
@@ -15,7 +32,11 @@ function validateSecret(request: Request): boolean {
 		return false;
 	}
 
-	return secret === expectedSecret;
+	if (!secret) {
+		return false;
+	}
+
+	return constantTimeCompare(secret, expectedSecret);
 }
 
 // Generic error response

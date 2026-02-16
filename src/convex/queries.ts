@@ -172,8 +172,9 @@ export const getMessages = authQuery({
 		limit: v.optional(v.number())
 	},
 	handler: async (ctx, args) => {
+		const MAX_AUTH_MESSAGE_LIMIT = 200;
 		const rawLimit = args.limit ?? 100;
-		const limit = Math.max(1, Math.floor(rawLimit));
+		const limit = Math.max(1, Math.min(MAX_AUTH_MESSAGE_LIMIT, Math.floor(rawLimit)));
 		const query = ctx.db
 			.query('messages')
 			.withIndex('by_chatRoom', (q) => q.eq('chatRoomId', args.roomId))
