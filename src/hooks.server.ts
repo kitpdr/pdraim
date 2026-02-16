@@ -15,6 +15,7 @@ function addSecurityHeaders(response: Response): Response {
 	headers.set('X-Content-Type-Options', 'nosniff');
 	headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 	headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+	headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
 
 	return new Response(response.body, {
 		status: response.status,
