@@ -25,7 +25,7 @@ function cleanupOldCaptchaAttempts() {
 	}
 }
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 	log.debug('New registration attempt received');
 
 	// Lazy cleanup on each request (replaces setInterval for Cloudflare compatibility)
@@ -39,7 +39,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	// Get the IP address for rate limiting and Turnstile validation
-	const ip = request.headers.get('x-forwarded-for') || 'unknown';
+	const ip = getClientAddress();
 	const maskedIp = ip
 		.split('.')
 		.map((octet, idx) => (idx < 3 ? 'xxx' : octet))

@@ -31,7 +31,7 @@ function cleanupOldAttempts() {
 	}
 }
 
-export const POST: RequestHandler = async ({ request, cookies }) => {
+export const POST: RequestHandler = async ({ request, cookies, getClientAddress }) => {
 	log.debug('New login attempt received');
 
 	// Lazy cleanup on each request (replaces setInterval for Cloudflare compatibility)
@@ -44,11 +44,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		});
 	}
 
-	// Get the IP address for rate limiting and Turnstile validation
-	// Prefer Cloudflare's CF-Connecting-IP header, then x-forwarded-for (first IP), then fallback
-	const cfConnectingIp = request.headers.get('cf-connecting-ip');
-	const forwardedFor = request.headers.get('x-forwarded-for') || '';
-	const ip = cfConnectingIp || forwardedFor.split(',')[0]?.trim() || 'unknown';
+	// Get the IP address for rate limiting
+	const ip = getClientAddress();
 	const maskedIp = ip
 		.split('.')
 		.map((octet, idx) => (idx < 3 ? 'xxx' : octet))
