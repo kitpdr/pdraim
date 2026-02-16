@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import convex from '$lib/db/convex.server';
 import { DEFAULT_USER_PREFERENCES, type UserTextPreferences } from '$lib/types/text-formatting';
 import { validateSessionToken } from '$lib/api/session.server';
+import { sanitizeStyleData } from '$lib/validation/text-formatting';
 
 const isKitHttpError = (err: unknown): err is { status: number; body: unknown } => {
 	return typeof err === 'object' && err !== null && 'status' in err && 'body' in err;
@@ -73,21 +74,27 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 
 		// Parse request body
 		const body = await request.json();
-		const { defaultStyle, allowFormatting, maxMessageLength } = body as UserTextPreferences;
+		const { allowFormatting, maxMessageLength } = body as {
+			allowFormatting: unknown;
+			maxMessageLength: unknown;
+			defaultStyle: unknown;
+		};
 
-		// Validate required fields
-		if (
-			!defaultStyle ||
-			typeof allowFormatting !== 'boolean' ||
-			typeof maxMessageLength !== 'number'
-		) {
+		// Validate types
+		if (typeof allowFormatting !== 'boolean' || typeof maxMessageLength !== 'number') {
 			throw error(400, 'Invalid preferences data');
+		}
+
+		// Validate and sanitize style data through existing Zod schema
+		const validatedStyle = sanitizeStyleData(body.defaultStyle);
+		if (!validatedStyle) {
+			throw error(400, 'Invalid style data');
 		}
 
 		// Save preferences via Convex
 		const result = await convex.textPreferences.save(
 			user.id,
-			defaultStyle,
+			validatedStyle,
 			allowFormatting,
 			maxMessageLength
 		);
