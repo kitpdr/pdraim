@@ -18,8 +18,8 @@ importers:
         specifier: ^1.31.7
         version: 1.31.7
       convex-helpers:
-        specifier: ^0.1.112
-        version: 0.1.112(@standard-schema/spec@1.1.0)(convex@1.31.7)(typescript@5.9.3)(zod@4.3.6)
+        specifier: ^0.1.113
+        version: 0.1.113(@standard-schema/spec@1.1.0)(convex@1.31.7)(typescript@5.9.3)(zod@4.3.6)
       convex-svelte:
         specifier: ^0.0.12
         version: 0.0.12(convex@1.31.7)(svelte@5.51.2)
@@ -1796,8 +1796,8 @@ packages:
   commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
 
-  convex-helpers@0.1.112:
-    resolution: {integrity: sha512-zhcm14aaRRNQYwxsFngmfYsGB3V0HwJ/hHMfKI9eeTR1N0b9o5Rohqvz3NgzyVJcmGNvYlZpUPbOy2YL5sYQNw==}
+  convex-helpers@0.1.113:
+    resolution: {integrity: sha512-IFLmgEbN2skC0w+M0MfXTYAITq/FeGxEe602Fij2/GI/WJ75G8/9aSDO0GddbwPDfvzUgQTbx5SbDtiegfwZBA==}
     hasBin: true
     peerDependencies:
       '@standard-schema/spec': ^1.0.0
@@ -4505,7 +4505,7 @@ snapshots:
 
   commander@2.20.3: {}
 
-  convex-helpers@0.1.112(@standard-schema/spec@1.1.0)(convex@1.31.7)(typescript@5.9.3)(zod@4.3.6):
+  convex-helpers@0.1.113(@standard-schema/spec@1.1.0)(convex@1.31.7)(typescript@5.9.3)(zod@4.3.6):
     dependencies:
       convex: 1.31.7
     optionalDependencies:
