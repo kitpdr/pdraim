@@ -12,8 +12,8 @@ importers:
         specifier: ^0.17.0
         version: 0.17.0
       '@lucide/svelte':
-        specifier: ^0.564.0
-        version: 0.564.0(svelte@5.51.2)
+        specifier: ^0.576.0
+        version: 0.576.0(svelte@5.51.2)
       convex:
         specifier: ^1.31.7
         version: 1.31.7
@@ -1163,8 +1163,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@lucide/svelte@0.564.0':
-    resolution: {integrity: sha512-jODK/wHX3lKi1CsLgx9wXspsDQ5/WbsNmBqecdTCbaH1Cy3C/n2g3WM1a59sokjq+81eZDFUi/7Yg4rVI3kyow==}
+  '@lucide/svelte@0.576.0':
+    resolution: {integrity: sha512-/xO9QPnPj5F5hvmPVdos+f9TeDQm0DntBdD7SpNPG9ZB7hOjzl8qUbfR6RsMik3yHvNlT4rUKE/ZMqzoBoiFDQ==}
     peerDependencies:
       svelte: ^5
 
@@ -3939,7 +3939,7 @@ snapshots:
   '@libsql/win32-x64-msvc@0.5.22':
     optional: true
 
-  '@lucide/svelte@0.564.0(svelte@5.51.2)':
+  '@lucide/svelte@0.576.0(svelte@5.51.2)':
     dependencies:
       svelte: 5.51.2
 
