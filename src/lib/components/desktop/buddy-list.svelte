@@ -12,6 +12,14 @@
 	import { chatState } from '$lib/states/chat.svelte';
 	import { desktop } from '$lib/states/desktop.svelte';
 	import XpWindow from './xp-window.svelte';
+	import { browser } from '$app/environment';
+
+	// Dock top-right like the real AIM buddy list, with breathing room above and
+	// above the taskbar (30px) below.
+	const BUDDY_LIST_WIDTH = 230;
+	const buddyListHeight = browser
+		? Math.max(360, Math.min(520, window.innerHeight - 30 - 2 * 40))
+		: 520;
 
 	const aim = useAimClient();
 	const buddyQuery = authQuery(api.aim.getMyBuddies, () => ({}));
@@ -244,7 +252,15 @@
 	</div>
 {/snippet}
 
-<XpWindow id="buddy-list" width={230} height={520} minWidth={230} showMaximize={false}>
+<XpWindow
+	id="buddy-list"
+	width={BUDDY_LIST_WIDTH}
+	height={buddyListHeight}
+	minWidth={BUDDY_LIST_WIDTH}
+	showMaximize={false}
+	x={browser ? Math.max(8, window.innerWidth - BUDDY_LIST_WIDTH - 24) : undefined}
+	y={browser ? 40 : undefined}
+>
 	{#snippet menu()}
 		<div class="menus" bind:this={menuBar}>
 			<div class="menu-wrap">
@@ -407,6 +423,7 @@
 			>
 				<label for="im-nick">Pseudo du contact</label><input
 					id="im-nick"
+					type="text"
 					bind:value={nickname}
 					autocomplete="off"
 				/><button type="submit">Ouvrir IM</button>
@@ -426,6 +443,7 @@
 					>{#each DEFAULT_BUDDY_GROUPS as group (group)}<option value={group}>{group}</option
 						>{/each}<option value="Autre…">Autre…</option></select
 				>{#if addGroup === 'Autre…'}<input
+						type="text"
 						aria-label="Nom du groupe"
 						bind:value={customGroup}
 					/>{/if}<button type="submit">Ajouter</button>

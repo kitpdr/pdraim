@@ -42,13 +42,20 @@
 			<label for="room-name">Nom du salon</label>
 			<input
 				id="room-name"
+				type="text"
 				maxlength="40"
 				minlength="2"
 				bind:value={name}
 				oninput={() => (error = '')}
 			/>
 			<label for="room-topic">Sujet (facultatif)</label>
-			<input id="room-topic" maxlength="120" bind:value={topic} oninput={() => (error = '')} />
+			<input
+				id="room-topic"
+				type="text"
+				maxlength="120"
+				bind:value={topic}
+				oninput={() => (error = '')}
+			/>
 			{#if error}<span role="alert">{error}</span>{/if}
 		{:else}
 			<p>Connectez-vous pour créer un salon.</p>

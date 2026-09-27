@@ -50,7 +50,7 @@ function getContext(): AudioContext | null {
 
 /** Call once from a user gesture so the browser allows playback. */
 export function unlockAudio() {
-	getContext();
+	if (getContext()) preloadSounds();
 }
 
 function noiseBuffer(ac: AudioContext, seconds: number) {
@@ -234,25 +234,28 @@ export const SOUND_DURATIONS_MS: Record<AimSound, number> = {
 	modem: 4500
 };
 
-// Sample cache: undefined = not probed yet, null = no file available
-const samples = new Map<AimSound, AudioBuffer | null>();
+// Sample cache: one in-flight/resolved promise per sound (null = no file available)
+const samples = new Map<AimSound, Promise<AudioBuffer | null>>();
 const SAMPLE_EXTENSIONS = ['mp3', 'wav', 'ogg'];
 
-async function loadSample(ac: AudioContext, name: AimSound): Promise<AudioBuffer | null> {
-	if (samples.has(name)) return samples.get(name) ?? null;
-	samples.set(name, null);
-	for (const ext of SAMPLE_EXTENSIONS) {
-		try {
-			const res = await fetch(`/sounds/${name}.${ext}`, { cache: 'force-cache' });
-			if (!res.ok || !(res.headers.get('content-type') ?? '').startsWith('audio/')) continue;
-			const buffer = await ac.decodeAudioData(await res.arrayBuffer());
-			samples.set(name, buffer);
-			return buffer;
-		} catch {
-			// try next extension
-		}
+function loadSample(ac: AudioContext, name: AimSound): Promise<AudioBuffer | null> {
+	let pending = samples.get(name);
+	if (!pending) {
+		pending = (async () => {
+			for (const ext of SAMPLE_EXTENSIONS) {
+				try {
+					const res = await fetch(`/sounds/${name}.${ext}`, { cache: 'force-cache' });
+					if (!res.ok || !(res.headers.get('content-type') ?? '').startsWith('audio/')) continue;
+					return await ac.decodeAudioData(await res.arrayBuffer());
+				} catch {
+					// try next extension
+				}
+			}
+			return null;
+		})();
+		samples.set(name, pending);
 	}
-	return null;
+	return pending;
 }
 
 /** Warm the sample cache so the first playback is not delayed by a fetch. */
@@ -266,21 +269,23 @@ export function playSound(name: AimSound) {
 	if (!enabled) return;
 	const ac = getContext();
 	if (!ac) return;
-	const cached = samples.get(name);
-	if (cached) {
-		const src = ac.createBufferSource();
-		src.buffer = cached;
-		src.connect(ac.destination);
-		src.start();
-		return;
-	}
-	if (cached === undefined) void loadSample(ac, name);
-	const master = ac.createGain();
-	master.gain.value = 0.9;
-	master.connect(ac.destination);
-	try {
-		players[name](ac, master, ac.currentTime);
-	} catch (err) {
-		console.warn('Sound playback failed', err);
-	}
+	// Always wait for the sample probe so the first play never falls back to the
+	// synthesized sketch while the real file is still downloading.
+	void loadSample(ac, name).then((buffer) => {
+		if (buffer) {
+			const src = ac.createBufferSource();
+			src.buffer = buffer;
+			src.connect(ac.destination);
+			src.start();
+			return;
+		}
+		const master = ac.createGain();
+		master.gain.value = 0.9;
+		master.connect(ac.destination);
+		try {
+			players[name](ac, master, ac.currentTime);
+		} catch (err) {
+			console.warn('Sound playback failed', err);
+		}
+	});
 }

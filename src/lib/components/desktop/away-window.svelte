@@ -58,10 +58,17 @@
 	}
 </script>
 
-<XpWindow id="away" width={360} height={300} resizableWindow={false}>
+<XpWindow id="away" width={360} height={340} resizableWindow={false}>
 	<div class="content">
-		<label for="away-preset">Message d’absence</label>
-		<select id="away-preset" value={selected} onchange={selectPreset}>
+		<label for="away-preset">Messages d’absence enregistrés</label>
+		<!-- Inline list box (like AIM) so the choices always stay inside the window -->
+		<select
+			id="away-preset"
+			class="preset-list"
+			size={presets.length + 1}
+			value={selected}
+			onchange={selectPreset}
+		>
 			{#each presets as preset (preset)}<option value={preset}>{preset}</option>{/each}
 			<option value="custom">Personnalisé…</option>
 		</select>
@@ -96,10 +103,32 @@
 		box-sizing: border-box;
 		font: inherit;
 	}
+	.preset-list {
+		height: auto;
+		padding: 1px;
+		background-image: none;
+		border: 1px solid #7f9db9;
+		overflow: hidden;
+	}
+	.preset-list:focus {
+		background-color: #fff;
+		color: inherit;
+	}
+	.preset-list option {
+		padding: 1px 3px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.preset-list option:checked {
+		background: #316ac5;
+		color: #fff;
+	}
 	textarea {
 		flex: 1;
-		min-height: 65px;
+		min-height: 60px;
 		resize: none;
+		border: 1px solid #7f9db9;
 	}
 	small {
 		align-self: flex-end;

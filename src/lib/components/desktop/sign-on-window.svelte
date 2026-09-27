@@ -101,6 +101,7 @@
 			playSound('welcome');
 			signedOnAs = name;
 			desktop.openBuddyList();
+			desktop.focus(WINDOW_ID);
 			await wait(1200);
 			desktop.close(WINDOW_ID);
 		} finally {

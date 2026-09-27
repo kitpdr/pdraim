@@ -1078,7 +1078,6 @@
 		{#if roomTopic}
 			<span class="room-topic">— {roomTopic}</span>
 		{/if}
-		<span class="room-count">{usersOnline.length} en ligne</span>
 		{#if mentionUnreadCount > 0}
 			<span class="room-mentions"
 				>({mentionUnreadCount} mention{mentionUnreadCount > 1 ? 's' : ''})</span
@@ -1492,13 +1491,8 @@
 		flex: 1;
 	}
 
-	.room-count {
-		margin-left: auto;
-		color: #666;
-		white-space: nowrap;
-	}
-
 	.room-mentions {
+		margin-left: auto;
 		font-weight: bold;
 		color: #c00000;
 		white-space: nowrap;
@@ -1729,8 +1723,14 @@
 		font-style: inherit;
 	}
 
-	button {
-		font-size: 1rem;
+	.input-container :global(> button) {
+		height: 21px;
+		min-height: 21px;
+		min-width: 0;
+		padding: 0 10px;
+		margin-left: 4px;
+		font-size: 11px;
+		white-space: nowrap;
 	}
 
 	.chat-container {
