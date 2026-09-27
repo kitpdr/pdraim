@@ -34,3 +34,6 @@ docs/plans/
 # Local audio samples (copyrighted, never committed)
 static/sounds/*
 !static/sounds/README.md
+# AIM smiley GIFs (AOL artwork, never committed)
+static/smileys/*
+!static/smileys/README.md

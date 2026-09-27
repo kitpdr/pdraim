@@ -1003,6 +1003,12 @@
 		}
 	}
 
+	function insertSmiley(code: string) {
+		const needsSpace = currentMessage.length > 0 && !currentMessage.endsWith(' ');
+		currentMessage = `${currentMessage}${needsSpace ? ' ' : ''}${code} `;
+		void tick().then(() => messageInput?.focus());
+	}
+
 	function openSignup() {
 		desktop.openLogin('signup');
 	}
@@ -1146,6 +1152,7 @@
 						bind:style={currentTextStyle}
 						compact={true}
 						showFontSelector={true}
+						onSmiley={insertSmiley}
 					/>
 				</div>
 			{/if}

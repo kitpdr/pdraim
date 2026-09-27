@@ -308,7 +308,16 @@
 					>
 				</div>{/if}
 		</div>
-		<TextFormattingToolbar bind:style={textStyle} compact={true} showFontSelector={true} />
+		<TextFormattingToolbar
+			bind:style={textStyle}
+			compact={true}
+			showFontSelector={true}
+			onSmiley={(code) => {
+				const needsSpace = draft.length > 0 && !draft.endsWith(' ');
+				draft = `${draft}${needsSpace ? ' ' : ''}${code} `;
+				document.getElementById(`im-input-${roomId}`)?.focus();
+			}}
+		/>
 		<div class="compose field-row">
 			<label class="sr-only" for={`im-input-${roomId}`}>Message à {otherNickname}</label>
 			<textarea

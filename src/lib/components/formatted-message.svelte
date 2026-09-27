@@ -4,6 +4,7 @@
 	import { formatText, createGradientText, escapeHtml } from '../utils/text-formatter';
 	import { DEFAULT_TEXT_STYLE } from '../types/text-formatting';
 	import { highlightMentionsPlain } from '../utils/mention';
+	import { replaceSmileys } from '$lib/aim/smileys';
 
 	// Props
 	let { message, allowFormatting = true } = $props<{
@@ -20,7 +21,7 @@
 	async function processMessage() {
 		if (!allowFormatting || !message.hasFormatting) {
 			// Still apply mention highlighting to plain text messages
-			formattedContent = highlightMentionsPlain(escapeHtml(message.content));
+			formattedContent = replaceSmileys(highlightMentionsPlain(escapeHtml(message.content)));
 			return;
 		}
 
@@ -52,7 +53,9 @@
 
 			// Regular formatted text (no gradient)
 			const styleWithoutGradient = { ...style, gradient: undefined };
-			formattedContent = await formatText(message.content, styleWithoutGradient, allowFormatting);
+			formattedContent = replaceSmileys(
+				await formatText(message.content, styleWithoutGradient, allowFormatting)
+			);
 		} catch (error) {
 			console.error('Message formatting error:', error);
 			hasError = true;
@@ -180,6 +183,13 @@
 {/if}
 
 <style>
+	.formatted-message :global(.aim-smiley),
+	:global(.aim-smiley) {
+		width: 19px;
+		height: 19px;
+		vertical-align: -4px;
+		image-rendering: pixelated;
+	}
 	.processing {
 		color: #666;
 		font-style: italic;
