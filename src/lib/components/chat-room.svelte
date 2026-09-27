@@ -15,7 +15,6 @@
 	import XpWindow from './desktop/xp-window.svelte';
 	import { desktop } from '$lib/states/desktop.svelte';
 	import { useAimClient } from '$lib/aim/client';
-	import { getBuddyIcon } from '$lib/aim/buddy-icons';
 	import { STATUS_LABELS_FR, type AimStatus } from '$lib/types/aim';
 	import FormattedMessage from './formatted-message.svelte';
 	import TextFormattingToolbar from './text-formatting-toolbar.svelte';
@@ -214,11 +213,6 @@
 		userMenu = null;
 	}
 
-	function statusIcon(status: string) {
-		const known: AimStatus[] = ['online', 'away', 'busy', 'idle', 'offline'];
-		return `/aim/status-${known.includes(status as AimStatus) ? status : 'offline'}.svg`;
-	}
-
 	function statusLabel(user: SafeUser) {
 		const label = STATUS_LABELS_FR[(user.status as AimStatus) ?? 'offline'] ?? user.status;
 		if (user.status === 'away' && user.awayMessage) return `${label} : ${user.awayMessage}`;
@@ -304,7 +298,7 @@
 
 	// User counts
 	const usersOnline = $derived(onlineUsers.filter((u) => u.status !== 'offline'));
-	const usersOffline = $derived(onlineUsers.filter((u) => u.status === 'offline'));
+	const selectedUser = $derived(onlineUsers.find((u) => u.id === selectedUserId) ?? null);
 
 	const mentionableUsers = $derived(
 		onlineUsers.filter((user) => !currentUser || user.id !== currentUser.id)
@@ -1123,10 +1117,9 @@
 				{/if}
 				{#if showRegistrationPrompt}
 					<div class="registration-prompt">
-						<p>
-							👋 <button class="link-button" onclick={openSignup}>Inscris-toi</button>pour lire le
-							reste du chat !
-						</p>
+						<img src="/aim/xp-info-16.png" alt="" width="16" height="16" />
+						<span>Vous devez être inscrit pour lire l'historique complet de ce salon.</span>
+						<button type="button" onclick={openSignup}>S'inscrire</button>
 					</div>
 				{/if}
 				{#each visibleMessages as message (message.id)}
@@ -1355,50 +1348,20 @@
 			{/if}
 		</div>
 
-		<!-- Participants (AIM chat room people list) -->
-		<div
-			class="sunken-panel users-list"
-			class:mobile={isMobile}
-			class:hidden={isMobile && !showUserList}
-		>
-			<p class="section-header">Participants ({usersOnline.length})</p>
-			{#each usersOnline as user (user.id)}
-				<div
-					class="user {user.status}"
-					class:selected={selectedUserId === user.id}
-					class:me={currentUser?.id === user.id}
-					role="button"
-					tabindex="0"
-					title={statusLabel(user)}
-					onclick={(e) => {
-						e.stopPropagation();
-						selectedUserId = user.id;
-						closeUserMenu();
-					}}
-					ondblclick={() => openImWith(user)}
-					oncontextmenu={(e) => openUserMenu(e, user)}
-					onkeydown={(e) => {
-						if (e.key === 'Enter') openImWith(user);
-					}}
-				>
-					<span
-						class="buddy-tile"
-						style="background: {getBuddyIcon(user.buddyIcon).bg}"
-						aria-hidden="true">{getBuddyIcon(user.buddyIcon).emoji}</span
-					>
-					<img class="status-icon" src={statusIcon(user.status)} alt="" width="12" height="12" />
-					<span class="nickname">{user.nickname}</span>
-				</div>
-			{/each}
-
-			{#if usersOffline.length > 0}
-				<div class="section-separator"></div>
-				<p class="section-header offline-header">Hors ligne ({usersOffline.length})</p>
-				{#each usersOffline as user (user.id)}
+		<!-- People here (AIM chat room) -->
+		<div class="people-panel" class:mobile={isMobile} class:hidden={isMobile && !showUserList}>
+			<p class="people-count">
+				{usersOnline.length}
+				{usersOnline.length === 1 ? 'personne ici' : 'personnes ici'}
+			</p>
+			<div class="sunken-panel users-list" role="listbox" aria-label="Personnes dans le salon">
+				{#each usersOnline as user (user.id)}
 					<div
-						class="user offline"
+						class="user {user.status}"
 						class:selected={selectedUserId === user.id}
-						role="button"
+						class:me={currentUser?.id === user.id}
+						role="option"
+						aria-selected={selectedUserId === user.id}
 						tabindex="0"
 						title={statusLabel(user)}
 						onclick={(e) => {
@@ -1412,11 +1375,34 @@
 							if (e.key === 'Enter') openImWith(user);
 						}}
 					>
-						<img class="status-icon" src={statusIcon('offline')} alt="" width="12" height="12" />
 						<span class="nickname">{user.nickname}</span>
 					</div>
 				{/each}
-			{/if}
+			</div>
+			<div class="people-actions">
+				<button
+					type="button"
+					disabled={!selectedUser || selectedUser.id === currentUser?.id}
+					onclick={() => selectedUser && openImWith(selectedUser)}>IM</button
+				>
+				<button
+					type="button"
+					disabled={!selectedUser}
+					onclick={() =>
+						selectedUser &&
+						desktop.openProfile({
+							userId: selectedUser.id as Id<'users'>,
+							nickname: selectedUser.nickname
+						})}>Infos</button
+				>
+				<button
+					type="button"
+					disabled={!selectedUser || selectedUser.id === currentUser?.id}
+					onclick={() =>
+						selectedUser && void aim.addBuddy(selectedUser.id as Id<'users'>).catch(console.error)}
+					>Ajouter</button
+				>
+			</div>
 		</div>
 
 		{#if userMenu}
@@ -1533,26 +1519,56 @@
 		flex-direction: column;
 	}
 
-	.users-list {
-		width: 10.5rem;
+	.people-panel {
+		width: 9.5rem;
 		flex: 0 0 auto;
-		padding: 0.4rem;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+	}
+
+	.people-count {
+		margin: 0 0 3px 0;
+		font-weight: bold;
+		font-size: 0.8rem;
+		white-space: nowrap;
+	}
+
+	.users-list {
+		flex: 1 1 auto;
+		min-height: 0;
+		padding: 2px;
 		overflow-y: auto;
 		font-size: 0.85rem;
+	}
+
+	.people-actions {
+		display: flex;
+		gap: 3px;
+		margin-top: 4px;
+	}
+
+	.people-actions button {
+		flex: 1 1 0;
+		min-width: 0;
+		padding: 0 4px;
+		font-size: 0.75rem;
 	}
 
 	.user {
 		display: flex;
 		align-items: center;
-		gap: 4px;
 		padding: 1px 3px;
-		cursor: pointer;
+		cursor: default;
 		border: 1px dotted transparent;
 		user-select: none;
+		overflow: hidden;
 	}
 
-	.user:hover {
-		background: #e8eefb;
+	.user .nickname {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.user.selected {
@@ -1573,22 +1589,6 @@
 
 	.user.selected .nickname {
 		color: #fff;
-	}
-
-	.buddy-tile {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 16px;
-		height: 16px;
-		font-size: 11px;
-		border: 1px solid rgba(0, 0, 0, 0.25);
-		border-radius: 2px;
-		flex: 0 0 16px;
-	}
-
-	.status-icon {
-		flex: 0 0 12px;
 	}
 
 	.user-menu {
@@ -1715,29 +1715,6 @@
 		-webkit-text-fill-color: transparent !important;
 	}
 
-	.section-header {
-		margin: 0 0 0.25rem 0;
-		font-weight: bold;
-		font-size: 0.75rem;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		color: var(--color-muted-foreground);
-	}
-
-	.offline-header {
-		opacity: 0.7;
-	}
-
-	.section-separator {
-		border-top: 1px solid var(--color-border);
-		margin: 0.5rem 0;
-	}
-
-	.user.offline {
-		color: var(--color-muted-foreground);
-		font-style: italic;
-	}
-
 	.sunken-panel {
 		background: white;
 		border: 0.125rem inset #dfdfdf;
@@ -1788,7 +1765,7 @@
 			flex-direction: column;
 		}
 
-		.users-list.mobile {
+		.people-panel.mobile {
 			width: 100%;
 			max-height: 30vh;
 		}
@@ -1926,45 +1903,25 @@
 	}
 
 	.registration-prompt {
-		background: #fff3e0;
-		color: #e65100;
-		padding: 1rem;
-		margin-bottom: 1rem;
-		border-radius: 4px;
-		text-align: center;
-		font-size: 0.95rem;
-		border: 1px solid #ffe0b2;
-		animation: fadeIn 0.3s ease-out;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		background: #ece9d8;
+		color: #000;
+		padding: 6px 8px;
+		margin-bottom: 6px;
+		border: 1px solid #aca899;
+		font-size: 0.85rem;
 	}
 
-	.registration-prompt p {
-		margin: 0;
+	.registration-prompt span {
+		flex: 1;
 	}
 
-	@keyframes fadeIn {
-		from {
-			opacity: 0;
-			transform: translateY(-10px);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0);
-		}
-	}
-
-	.registration-prompt .link-button {
-		color: #e65100;
-		text-decoration: underline;
-		cursor: pointer;
-		background: none;
-		border: none;
-		padding: 0;
-		font: inherit;
-	}
-
-	.registration-prompt .link-button:hover {
-		color: #ef6c00;
-		text-decoration: none;
+	.registration-prompt button {
+		min-width: 0;
+		padding: 0 10px;
+		white-space: nowrap;
 	}
 
 	.chat-window.minimized {
