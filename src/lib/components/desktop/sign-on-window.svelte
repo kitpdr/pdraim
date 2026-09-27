@@ -176,7 +176,7 @@
 <XpWindow
 	id={WINDOW_ID}
 	width={300}
-	height={activeTab === 'signin' ? 400 : 520}
+	height={activeTab === 'signin' ? 380 : 600}
 	resizableWindow={false}
 >
 	<div class="signon">
@@ -269,7 +269,7 @@
 							onfocus={() => (showStrength = true)}
 						/>
 						{#if showStrength}
-							<PasswordStrengthIndicator password={suPassword} showDetails={true} />
+							<PasswordStrengthIndicator password={suPassword} showDetails={false} />
 						{/if}
 					</div>
 					<div class="field-row-stacked">
@@ -306,7 +306,7 @@
 		gap: 8px;
 		font-size: 11px;
 		height: 100%;
-		overflow-y: auto;
+		overflow: hidden;
 	}
 
 	.banner {

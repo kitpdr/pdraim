@@ -70,6 +70,13 @@
 		return () => window.removeEventListener('resize', onResize);
 	});
 
+	// Follow explicit size changes from the parent (e.g. a dialog switching tabs)
+	$effect(() => {
+		if (isMaximized) return;
+		w = width;
+		h = height;
+	});
+
 	function close() {
 		onClose?.();
 		desktop.close(id);
