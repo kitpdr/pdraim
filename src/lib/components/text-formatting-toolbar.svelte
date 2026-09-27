@@ -146,7 +146,7 @@
 				aria-haspopup="true"
 				aria-expanded={smileyOpen}
 				onclick={() => (smileyOpen = !smileyOpen)}
-				style="width: 24px; height: 20px; padding: 0; min-width: 0;"
+				class="smiley-trigger"
 			>
 				<img src="/smileys/01.gif" alt="🙂" width="15" height="15" />
 			</button>
@@ -219,7 +219,19 @@
 		position: relative;
 		display: flex;
 	}
+	.smiley-trigger {
+		width: 24px;
+		height: 20px;
+		min-width: 0;
+		min-height: 0;
+		padding: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		line-height: 0;
+	}
 	.smiley-control img {
+		display: block;
 		image-rendering: pixelated;
 	}
 	.smiley-picker {
