@@ -79,8 +79,7 @@
 				status: u.status as SafeUser['status'],
 				avatarUrl: u.avatarUrl ?? null,
 				lastSeen: u.lastSeen ?? null,
-				awayMessage: u.awayMessage,
-				buddyIcon: u.buddyIcon
+				awayMessage: u.awayMessage
 			}))
 			.sort((a, b) => {
 				const statusOrder: Record<string, number> = {

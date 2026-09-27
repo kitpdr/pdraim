@@ -12,8 +12,7 @@ export default defineSchema({
 		lastReadMentionTimestamp: v.optional(v.number()), // Timestamp of last read mention
 		// AIM profile
 		awayMessage: v.optional(v.string()), // Shown while status === 'away'
-		profile: v.optional(v.string()), // Free text "Get Info" profile
-		buddyIcon: v.optional(v.string()) // Preset icon id (see $lib/aim/buddy-icons)
+		profile: v.optional(v.string()) // Free text "Get Info" profile
 	})
 		.index('by_nickname', ['nickname'])
 		.index('by_status', ['status']),

@@ -6,7 +6,6 @@
 	import { desktop } from '$lib/states/desktop.svelte';
 	import { chatState } from '$lib/states/chat.svelte';
 	import { useAimClient } from '$lib/aim/client';
-	import { BUDDY_ICONS, getBuddyIcon } from '$lib/aim/buddy-icons';
 	import { STATUS_LABELS_FR } from '$lib/types/aim';
 	import { formatFrenchDateTime } from '$lib/utils/date-format';
 
@@ -17,7 +16,6 @@
 	const profile = $derived(profileQuery.data);
 	const own = $derived(userId === chatState.getCurrentUser()?.id);
 	let text = $state('');
-	let icon = $state('runner');
 	let saved = $state(false);
 	let saving = $state(false);
 	let error = $state('');
@@ -25,7 +23,6 @@
 	$effect(() => {
 		if (profile && initializedFor !== userId) {
 			text = profile.profile ?? '';
-			icon = profile.buddyIcon ?? 'runner';
 			initializedFor = userId;
 		}
 	});
@@ -35,7 +32,7 @@
 		saved = false;
 		error = '';
 		try {
-			await client.updateProfile({ profile: text, buddyIcon: icon });
+			await client.updateProfile({ profile: text });
 			saved = true;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Impossible d’enregistrer.';
@@ -49,13 +46,7 @@
 	<div class="profile-content">
 		{#if profile}
 			<div class="identity">
-				<div
-					class="buddy-icon"
-					style:background={getBuddyIcon(profile.buddyIcon).bg}
-					aria-label={getBuddyIcon(profile.buddyIcon).label}
-				>
-					{getBuddyIcon(profile.buddyIcon).emoji}
-				</div>
+				<img class="buddy-icon" src="/aim/running-man-48.png" alt="" width="48" height="48" />
 				<div>
 					<strong>{profile.nickname}</strong>
 					<div class="status">
@@ -82,21 +73,6 @@
 					oninput={() => (saved = false)}
 				></textarea>
 				<small>{text.length}/1000</small>
-				<div class="icon-grid" aria-label="Choisir une icône">
-					{#each BUDDY_ICONS as preset (preset.id)}
-						<button
-							class:selected={icon === preset.id}
-							aria-label={preset.label}
-							aria-pressed={icon === preset.id}
-							title={preset.label}
-							style:background={preset.bg}
-							onclick={() => {
-								icon = preset.id;
-								saved = false;
-							}}>{preset.emoji}</button
-						>
-					{/each}
-				</div>
 			{:else}
 				<div id="profile-text" class="sunken-panel profile-text">
 					{profile.profile ?? 'Aucun profil pour le moment.'}
@@ -136,13 +112,7 @@
 		gap: 10px;
 	}
 	.buddy-icon {
-		width: 48px;
-		height: 48px;
 		flex: 0 0 48px;
-		display: grid;
-		place-items: center;
-		font-size: 28px;
-		border: 1px solid #777;
 	}
 	.status {
 		display: flex;
@@ -171,22 +141,6 @@
 	}
 	textarea {
 		resize: vertical;
-	}
-	.icon-grid {
-		display: grid;
-		grid-template-columns: repeat(8, 1fr);
-		gap: 3px;
-	}
-	.icon-grid button {
-		padding: 0;
-		min-width: 0;
-		height: 30px;
-		font-size: 18px;
-		cursor: pointer;
-		border: 2px solid transparent;
-	}
-	.icon-grid button.selected {
-		border-color: #245edb;
 	}
 	.actions {
 		margin-top: auto;

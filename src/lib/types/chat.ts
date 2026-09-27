@@ -9,7 +9,6 @@ export interface User {
 	lastSeen?: number | null; // Optional last active timestamp
 	lastReadMentionTimestamp?: number | null; // Timestamp of last read mention
 	awayMessage?: string; // AIM away message (only exposed while away)
-	buddyIcon?: string; // Preset buddy icon id
 }
 
 export type UserStatus = 'offline' | 'online' | 'away' | string;

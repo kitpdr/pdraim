@@ -10,7 +10,6 @@ export interface AimUser {
 	avatarUrl?: string | null;
 	lastSeen?: number | null;
 	awayMessage?: string;
-	buddyIcon?: string;
 	createdAt?: number;
 }
 

@@ -6,7 +6,6 @@
 	import type { EnrichedMessage, SafeUser } from '$lib/types/chat';
 	import { authQuery, useAimClient } from '$lib/aim/client';
 	import { playSound } from '$lib/aim/sounds';
-	import { getBuddyIcon } from '$lib/aim/buddy-icons';
 	import { STATUS_LABELS_FR, type AimStatus } from '$lib/types/aim';
 	import { chatState } from '$lib/states/chat.svelte';
 	import { desktop } from '$lib/states/desktop.svelte';
@@ -31,7 +30,6 @@
 	const profileQuery = useQuery(convexApi.aim.getUserProfile, () => ({ userId: otherUserId }));
 	const currentUser = $derived(chatState.getCurrentUser());
 	const profile = $derived(profileQuery.data);
-	const buddyIcon = $derived(getBuddyIcon(profile?.buddyIcon));
 	const status = $derived((profile?.status ?? 'offline') as AimStatus);
 	const messages = $derived.by<EnrichedMessage[]>(() =>
 		(messagesQuery?.data ?? []).map((msg) => ({
@@ -262,14 +260,7 @@
 	{/snippet}
 	<div class="im-body">
 		<div class="header">
-			<div
-				class="buddy-icon"
-				style:background={buddyIcon.bg}
-				role="img"
-				aria-label={buddyIcon.label}
-			>
-				{buddyIcon.emoji}
-			</div>
+			<img class="buddy-icon" src="/aim/running-man-48.png" alt="" width="48" height="48" />
 			<div class="identity">
 				<strong>{profile?.nickname ?? otherNickname}</strong><span
 					><img src={`/aim/status-${status}.svg`} alt="" width="14" height="14" />
@@ -380,12 +371,6 @@
 		padding: 2px 4px;
 	}
 	.buddy-icon {
-		width: 48px;
-		height: 48px;
-		display: grid;
-		place-items: center;
-		font-size: 29px;
-		border: 1px solid #aca899;
 		flex: none;
 	}
 	.identity {

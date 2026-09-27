@@ -72,7 +72,7 @@ export function useAimClient() {
 			const { client, hash } = requireAuth();
 			return client.mutation(api.aim.setAwayMessage, { tokenHash: hash, awayMessage });
 		},
-		async updateProfile(patch: { profile?: string; buddyIcon?: string }) {
+		async updateProfile(patch: { profile?: string }) {
 			const { client, hash } = requireAuth();
 			return client.mutation(api.aim.updateProfile, { tokenHash: hash, ...patch });
 		},

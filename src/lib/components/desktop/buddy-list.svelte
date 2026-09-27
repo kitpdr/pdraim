@@ -6,7 +6,6 @@
 	import type { Id } from '../../../convex/_generated/dataModel';
 	import type { Buddy, AimStatus } from '$lib/types/aim';
 	import { DEFAULT_BUDDY_GROUPS, STATUS_LABELS_FR } from '$lib/types/aim';
-	import { getBuddyIcon } from '$lib/aim/buddy-icons';
 	import { playSound } from '$lib/aim/sounds';
 	import { authQuery, useAimClient, convexAvailable } from '$lib/aim/client';
 	import { chatState } from '$lib/states/chat.svelte';
@@ -327,9 +326,7 @@
 	<div class="buddy-content">
 		<header class="identity">
 			{#if me}
-				<div class="icon" style:background={getBuddyIcon(meQuery?.data?.buddyIcon).bg}>
-					{getBuddyIcon(meQuery?.data?.buddyIcon).emoji}
-				</div>
+				<img class="icon" src="/aim/running-man-32.png" alt="" width="32" height="32" />
 				<div class="identity-text">
 					<strong
 						><img src="/aim/running-man-16.png" alt="" width="16" height="16" />
@@ -523,13 +520,7 @@
 		margin: 3px 0 0;
 	}
 	.icon {
-		display: grid;
-		place-items: center;
-		width: 32px;
-		height: 32px;
 		flex: none;
-		border: 1px solid #9c8700;
-		font-size: 22px;
 	}
 	.identity-text {
 		min-width: 0;

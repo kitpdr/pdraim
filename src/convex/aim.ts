@@ -39,7 +39,6 @@ export function toPublicUser(user: Doc<'users'>) {
 		avatarUrl: user.avatarUrl,
 		lastSeen: user.lastSeen,
 		awayMessage: status === 'away' ? user.awayMessage : undefined,
-		buddyIcon: user.buddyIcon,
 		createdAt: user.createdAt
 	};
 }
@@ -176,8 +175,7 @@ export const getRoomMessages = authQuery({
 								id: sender._id,
 								nickname: sender.nickname,
 								status: computeEffectiveStatus(sender.status, sender.lastSeen),
-								avatarUrl: sender.avatarUrl,
-								buddyIcon: sender.buddyIcon
+								avatarUrl: sender.avatarUrl
 							}
 						: null
 				};
@@ -214,7 +212,6 @@ export const getMe = authQuery({
 			status: u.status,
 			awayMessage: u.awayMessage,
 			profile: u.profile,
-			buddyIcon: u.buddyIcon,
 			createdAt: u.createdAt
 		};
 	}
@@ -240,15 +237,11 @@ export const setAwayMessage = authMutation({
 });
 
 export const updateProfile = authMutation({
-	args: { profile: v.optional(v.string()), buddyIcon: v.optional(v.string()) },
+	args: { profile: v.optional(v.string()) },
 	handler: async (ctx, args) => {
 		const patch: Partial<Doc<'users'>> = {};
 		if (args.profile !== undefined)
 			patch.profile = args.profile.trim().slice(0, MAX_PROFILE_LENGTH);
-		if (args.buddyIcon !== undefined) {
-			if (!/^[a-z0-9-]{1,32}$/.test(args.buddyIcon)) throw new Error('Invalid buddy icon');
-			patch.buddyIcon = args.buddyIcon;
-		}
 		await ctx.db.patch(ctx.user._id, patch);
 		return { success: true };
 	}
