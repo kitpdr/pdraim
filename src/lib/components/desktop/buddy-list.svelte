@@ -328,10 +328,7 @@
 			{#if me}
 				<img class="icon" src="/aim/running-man-32.png" alt="" width="32" height="32" />
 				<div class="identity-text">
-					<strong
-						><img src="/aim/running-man-16.png" alt="" width="16" height="16" />
-						{me.nickname}</strong
-					><span title={meQuery?.data?.awayMessage ?? ''}
+					<strong>{me.nickname}</strong><span title={meQuery?.data?.awayMessage ?? ''}
 						>{meQuery?.data?.status === 'away'
 							? `Absent${meQuery.data.awayMessage ? ` : ${meQuery.data.awayMessage}` : ''}`
 							: (STATUS_LABELS_FR[(meQuery?.data?.status ?? me.status) as AimStatus] ??
