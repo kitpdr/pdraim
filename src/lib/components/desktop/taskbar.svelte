@@ -56,8 +56,7 @@
 		bind:this={startElement}
 		aria-expanded={menuOpen}
 		aria-controls="start-menu"
-		onclick={() => (menuOpen = !menuOpen)}
-		><img src="/aim/start.svg" alt="" width="20" height="20" />démarrer</button
+		onclick={() => (menuOpen = !menuOpen)}><span class="start-label">démarrer</span></button
 	>
 	{#if menuOpen}
 		<div class="start-menu" id="start-menu" bind:this={menuElement}>
@@ -139,8 +138,26 @@
 		display: flex;
 		align-items: stretch;
 		gap: 4px;
-		background: linear-gradient(#245edb, #3168d5);
-		border-top: 1px solid #0f3d9a;
+		background: linear-gradient(
+			to bottom,
+			#1f2f86 0,
+			#3165c4 3%,
+			#3682e5 6%,
+			#4490e6 10%,
+			#3883e5 12%,
+			#2b71e0 15%,
+			#2663da 18%,
+			#235bd6 20%,
+			#2258d5 23%,
+			#2157d6 38%,
+			#245ddb 54%,
+			#2562df 86%,
+			#245fdc 89%,
+			#2158d4 92%,
+			#1d4ec0 95%,
+			#1941a5 98%
+		);
+		border-top: 0;
 		box-sizing: border-box;
 		color: white;
 		font:
@@ -148,20 +165,38 @@
 			'Pixelated MS Sans Serif',
 			sans-serif;
 	}
+	/* Real XP "start" button: 3-slice of the original bitmap (logo | stretch | rounded cap) */
 	.start {
 		display: flex;
 		align-items: center;
-		gap: 4px;
 		border: 0;
-		border-radius: 0 14px 14px 0;
-		background: linear-gradient(#3c8f3c, #2c7a2c);
+		border-radius: 0;
+		height: 30px;
+		padding: 0 17px 0 34px;
+		margin: 0;
+		background:
+			url('/desktop/start-left.png') left / auto 100% no-repeat,
+			url('/desktop/start-right.png') right / auto 100% no-repeat,
+			url('/desktop/start-mid.png') 34px 0 / calc(100% - 51px) 100% no-repeat;
 		color: white;
 		font:
-			bold italic 14px Tahoma,
+			bold italic 15px 'Franklin Gothic Medium',
+			'Trebuchet MS',
+			Tahoma,
 			sans-serif;
-		padding: 0 14px 0 6px;
 		cursor: pointer;
-		box-shadow: inset 0 1px #8acb70;
+		text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.6);
+	}
+	.start:hover {
+		filter: brightness(1.08);
+	}
+	.start:active,
+	.start[aria-expanded='true'] {
+		filter: brightness(0.85);
+	}
+	.start-label {
+		line-height: 1;
+		padding-bottom: 2px;
 	}
 	.start-menu {
 		position: absolute;
