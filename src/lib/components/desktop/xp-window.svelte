@@ -195,16 +195,38 @@
 		display: flex;
 		align-items: center;
 		flex: 0 0 auto;
+		height: 30px;
+		box-sizing: border-box;
+		padding: 0 5px 0 4px;
+		font-size: 13px;
 	}
 
 	.title-bar-text {
 		display: flex;
 		align-items: center;
-		gap: 4px;
+		gap: 5px;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		min-width: 0;
+		flex: 1;
+		margin-right: 8px;
+	}
+
+	.title-bar-controls {
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		flex: 0 0 auto;
+	}
+
+	.title-bar-controls button {
+		width: 21px;
+		height: 21px;
+		min-width: 21px;
+		min-height: 21px;
+		margin: 0;
+		flex: 0 0 21px;
 	}
 
 	.title-text {
