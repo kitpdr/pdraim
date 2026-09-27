@@ -215,6 +215,19 @@
 		gap: 1px;
 	}
 
+	/* xp.css gives every button min-width: 75px; keep toolbar buttons square */
+	.style-toggles button,
+	.color-controls :global(.color-picker-container > button) {
+		width: 22px !important;
+		height: 20px !important;
+		min-width: 0;
+		min-height: 0;
+		padding: 0 !important;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
 	.smiley-control {
 		position: relative;
 		display: flex;
