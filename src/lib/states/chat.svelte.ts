@@ -12,6 +12,8 @@ class ChatState {
 	// Current user state (from session)
 	private _currentUser = $state<SafeUser | null>(null);
 	private _currentRoomId = $state<string | null>(null);
+	// SHA-256 hash of the session token: used as `tokenHash` for Convex authQuery/authMutation
+	private _sessionTokenHash = $state<string | null>(null);
 
 	// Connection state for UI feedback
 	private _connectionStatus = $state<'connected' | 'disconnected' | 'reconnecting'>('disconnected');
@@ -43,6 +45,7 @@ class ChatState {
 	setCurrentUser(user: User | SafeUser | null) {
 		if (!user) {
 			this._currentUser = null;
+			this._sessionTokenHash = null;
 			this._connectionStatus = 'disconnected';
 			this._roomMentionCounts = {};
 			return;
@@ -51,6 +54,17 @@ class ChatState {
 		const safeUser = 'password' in user ? createSafeUser(user) : user;
 		this._currentUser = safeUser;
 		this._connectionStatus = 'connected';
+	}
+
+	/**
+	 * Session token hash for client-side authenticated Convex calls
+	 */
+	getSessionTokenHash() {
+		return this._sessionTokenHash;
+	}
+
+	setSessionTokenHash(hash: string | null) {
+		this._sessionTokenHash = hash;
 	}
 
 	/**

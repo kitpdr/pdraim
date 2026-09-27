@@ -227,6 +227,9 @@
 		if (data.session?.id) {
 			console.debug('Updating global chatState with data.user:', data.user);
 			chatState.setCurrentUser(data.user);
+			chatState.setSessionTokenHash(data.session.id);
+		} else {
+			chatState.setCurrentUser(null);
 		}
 	});
 </script>

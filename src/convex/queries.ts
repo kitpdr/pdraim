@@ -1,6 +1,7 @@
 import { query } from './_generated/server';
 import { authQuery } from './auth';
 import { v } from 'convex/values';
+import { toPublicUser } from './aim';
 
 // Timeout threshold for marking users as offline (2 minutes)
 const ONLINE_TIMEOUT_MS = 2 * 60 * 1000;
@@ -122,13 +123,7 @@ export const getUsersPublic = query({
 		const users = await ctx.db.query('users').collect();
 
 		// Return safe user data (no passwords) with computed status
-		return users.map((user) => ({
-			id: user._id,
-			nickname: user.nickname,
-			status: computeEffectiveStatus(user.status, user.lastSeen),
-			avatarUrl: user.avatarUrl,
-			lastSeen: user.lastSeen
-		}));
+		return users.map(toPublicUser);
 	}
 });
 
@@ -219,13 +214,7 @@ export const getUsers = authQuery({
 		const users = await ctx.db.query('users').collect();
 
 		// Return safe user data (no passwords) with computed status
-		return users.map((user) => ({
-			id: user._id,
-			nickname: user.nickname,
-			status: computeEffectiveStatus(user.status, user.lastSeen),
-			avatarUrl: user.avatarUrl,
-			lastSeen: user.lastSeen
-		}));
+		return users.map(toPublicUser);
 	}
 });
 
