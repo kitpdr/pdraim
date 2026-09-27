@@ -153,7 +153,7 @@ class DesktopState {
 			id: roomId ? `room-${roomId}` : 'room-default',
 			kind: 'chat-room',
 			title: `Salon : ${roomName}`,
-			icon: '/aim/chat-room.svg',
+			icon: '/aim/chat-room-16.png',
 			props: props as unknown as Record<string, unknown>
 		});
 	}
@@ -163,7 +163,7 @@ class DesktopState {
 			id: `im-${props.roomId}`,
 			kind: 'im',
 			title: `${props.otherNickname} - Message instantané`,
-			icon: '/aim/im.svg',
+			icon: '/aim/running-man-16.png',
 			props: props as unknown as Record<string, unknown>
 		});
 	}
@@ -183,7 +183,7 @@ class DesktopState {
 			id: `profile-${props.userId}`,
 			kind: 'profile',
 			title: `Infos sur ${props.nickname}`,
-			icon: '/aim/info.svg',
+			icon: '/aim/xp-info-16.png',
 			props: props as unknown as Record<string, unknown>
 		});
 	}
@@ -193,7 +193,7 @@ class DesktopState {
 			id: 'away',
 			kind: 'away',
 			title: 'Message d’absence',
-			icon: '/aim/away.svg',
+			icon: '/aim/xp-note-16.png',
 			props: {}
 		});
 	}
@@ -203,7 +203,7 @@ class DesktopState {
 			id: 'new-room',
 			kind: 'new-room',
 			title: 'Nouveau salon',
-			icon: '/aim/chat-room.svg',
+			icon: '/aim/chat-room-16.png',
 			props: {}
 		});
 	}
@@ -213,7 +213,7 @@ class DesktopState {
 			id: 'preferences',
 			kind: 'preferences',
 			title: 'Préférences',
-			icon: '/aim/prefs.svg',
+			icon: '/aim/xp-control-panel-16.png',
 			props: {}
 		});
 	}
@@ -223,7 +223,7 @@ class DesktopState {
 			id: 'about',
 			kind: 'about',
 			title: 'À propos de PDR AIM',
-			icon: '/aim/help.svg',
+			icon: '/aim/xp-help-16.png',
 			props: {}
 		});
 	}

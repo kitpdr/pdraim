@@ -228,7 +228,12 @@
 		>
 			<img src={`/aim/status-${buddy.status}.svg`} alt="" width="12" height="12" />
 			<span class="truncate">{buddy.nickname}{buddy.status === 'idle' ? ' (Inactif)' : ''}</span>
-			{#if buddy.status === 'away'}<img src="/aim/away.svg" alt="" width="12" height="12" />{/if}
+			{#if buddy.status === 'away'}<img
+					src="/aim/xp-note-16.png"
+					alt=""
+					width="12"
+					height="12"
+				/>{/if}
 		</button>
 		{#if editMode}<button
 				class="remove"
@@ -311,7 +316,8 @@
 				</div>
 				<div class="identity-text">
 					<strong
-						><img src="/aim/running-man-16.png" alt="" width="16" height="16" /> {me.nickname}</strong
+						><img src="/aim/running-man-16.png" alt="" width="16" height="16" />
+						{me.nickname}</strong
 					><span title={meQuery?.data?.awayMessage ?? ''}
 						>{meQuery?.data?.status === 'away'
 							? `Absent${meQuery.data.awayMessage ? ` : ${meQuery.data.awayMessage}` : ''}`
@@ -366,7 +372,7 @@
 				{#if !collapsed.has('Salons')}{#each [...(roomsQuery?.data ?? [])].sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name)) as room (room.id)}<button
 							class="list-entry"
 							onclick={() => desktop.openChatRoom(room.id, room.name)}
-							><img src="/aim/chat-room.svg" alt="" width="12" height="12" />
+							><img src="/aim/chat-room-16.png" alt="" width="12" height="12" />
 							<span class="truncate">{room.name}</span></button
 						>{/each}{/if}
 				<button
@@ -385,7 +391,7 @@
 										otherUserId: room.other!.id,
 										otherNickname: room.other!.nickname
 									})}
-								><img src="/aim/im.svg" alt="" width="12" height="12" />
+								><img src="/aim/running-man-16.png" alt="" width="12" height="12" />
 								<span class="truncate"
 									>{room.other.nickname}{room.unreadCount ? ` (${room.unreadCount})` : ''}</span
 								></button
@@ -427,23 +433,23 @@
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
 		<div class="toolbar">
 			<button disabled={!me} onclick={() => openPanel('im')}
-				><img src="/aim/im.svg" alt="" />IM</button
+				><img src="/aim/running-man-48.png" alt="" />IM</button
 			>
 			<button disabled={!me} onclick={() => desktop.openNewRoom()}
-				><img src="/aim/chat-room.svg" alt="" />Chat</button
+				><img src="/aim/chat-room-48.png" alt="" />Chat</button
 			>
 			<button
 				disabled={!selectedBuddy}
 				onclick={() => {
 					if (selectedBuddy)
 						desktop.openProfile({ userId: selectedBuddy.id, nickname: selectedBuddy.nickname });
-				}}><img src="/aim/info.svg" alt="" />Infos</button
+				}}><img src="/aim/profile-48.png" alt="" />Infos</button
 			>
 			<button disabled={!me} onclick={() => desktop.openAway()}
-				><img src="/aim/away.svg" alt="" />Absent</button
+				><img src="/aim/xp-note-48.png" alt="" />Absent</button
 			>
 			<button disabled={!me} onclick={() => openPanel('add')}
-				><img src="/aim/door-open.svg" alt="" />Ajouter</button
+				><img src="/aim/add-buddy-48.png" alt="" />Ajouter</button
 			>
 		</div>
 	</div>
@@ -644,8 +650,8 @@
 		font: inherit;
 	}
 	.toolbar img {
-		width: 20px;
-		height: 20px;
+		width: 24px;
+		height: 24px;
 	}
 	.menus {
 		display: flex;

@@ -108,7 +108,14 @@
 				unlockAudio();
 				soundOn = !soundsEnabled();
 				setSoundsEnabled(soundOn);
-			}}><span aria-hidden="true">{soundOn ? '🔊' : '🔇'}</span></button
+			}}
+			><img
+				src={soundOn ? '/aim/xp-volume-16.png' : '/aim/xp-volume-muted-16.png'}
+				alt=""
+				width="16"
+				height="16"
+				class:muted={!soundOn}
+			/></button
 		>
 		<img
 			src="/aim/running-man-16.png"
@@ -258,6 +265,11 @@
 		border-left: 1px solid #78baff;
 		white-space: nowrap;
 	}
+	.tray-button img.muted {
+		opacity: 0.45;
+		filter: grayscale(1);
+	}
+
 	.tray-button {
 		min-width: 0;
 		padding: 0;

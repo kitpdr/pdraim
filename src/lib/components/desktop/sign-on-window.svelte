@@ -181,10 +181,13 @@
 >
 	<div class="signon">
 		<div class="banner">
-			<img src="/aim/running-man-48.png" alt="" width="40" height="40" />
+			<img src="/aim/running-man-48.png" alt="" width="44" height="44" />
 			<div class="brand">
-				<div class="brand-title">PDR AIM</div>
-				<div class="brand-sub">Instant Messenger</div>
+				<div class="brand-aol">
+					<img src="/aim/aol-logo-16.png" alt="" width="14" height="14" /> PDR
+				</div>
+				<div class="brand-title">Instant</div>
+				<div class="brand-title">Messenger</div>
 			</div>
 		</div>
 
@@ -309,22 +312,27 @@
 	.banner {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		padding: 8px 10px;
-		background: linear-gradient(180deg, #fff3a6 0%, #f6c700 100%);
-		border: 1px solid #c99a00;
+		gap: 12px;
+		padding: 10px 12px;
+		background: #1b2a9a;
+		border: 1px solid #0f1a66;
+		color: #fff;
 	}
 
-	.brand-title {
+	.brand-aol {
+		display: flex;
+		align-items: center;
+		gap: 4px;
 		font-weight: bold;
-		font-size: 18px;
-		color: #1b1b1b;
+		font-size: 12px;
 		letter-spacing: 1px;
 	}
 
-	.brand-sub {
-		font-size: 10px;
-		color: #5a4a00;
+	.brand-title {
+		font-style: italic;
+		font-size: 17px;
+		line-height: 1;
+		color: #fff;
 	}
 
 	.tabs {

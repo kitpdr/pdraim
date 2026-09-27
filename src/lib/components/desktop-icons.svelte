@@ -24,26 +24,26 @@
 		{
 			id: 'general',
 			label: 'Salon General',
-			icon: '/aim/chat-room.svg',
+			icon: '/aim/chat-room-48.png',
 			action: () => desktop.openChatRoom(null, 'General')
 		},
 		{
 			id: 'away',
 			label: 'Message d’absence',
-			icon: '/aim/away.svg',
+			icon: '/aim/xp-note-48.png',
 			action: () => desktop.openAway(),
 			hidden: !currentUser
 		},
 		{
 			id: 'prefs',
 			label: 'Préférences',
-			icon: '/aim/prefs.svg',
+			icon: '/aim/xp-control-panel-48.png',
 			action: () => desktop.openPreferences()
 		},
 		{
 			id: 'about',
 			label: 'Aide',
-			icon: '/aim/help.svg',
+			icon: '/aim/xp-help-48.png',
 			action: () => desktop.openAbout()
 		}
 	]);

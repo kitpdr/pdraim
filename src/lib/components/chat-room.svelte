@@ -1079,7 +1079,7 @@
 	{/snippet}
 
 	<div class="room-header">
-		<img src="/aim/chat-room.svg" alt="" width="16" height="16" />
+		<img src="/aim/chat-room-16.png" alt="" width="16" height="16" />
 		<span class="room-name">{roomName}</span>
 		{#if roomTopic}
 			<span class="room-topic">— {roomTopic}</span>
@@ -1484,8 +1484,9 @@
 		gap: 6px;
 		padding: 3px 6px;
 		margin-bottom: 4px;
-		background: linear-gradient(180deg, #fff3a6 0%, #f6c700 100%);
-		border: 1px solid #c99a00;
+		background: #ece9d8;
+		border-bottom: 1px solid #aca899;
+		color: #333;
 		font-family: Tahoma, 'Pixelated MS Sans Serif', sans-serif;
 		font-size: 11px;
 		flex: 0 0 auto;
@@ -1497,7 +1498,7 @@
 	}
 
 	.room-topic {
-		color: #5a4a00;
+		color: #666;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -1507,7 +1508,7 @@
 
 	.room-count {
 		margin-left: auto;
-		color: #5a4a00;
+		color: #666;
 		white-space: nowrap;
 	}
 
