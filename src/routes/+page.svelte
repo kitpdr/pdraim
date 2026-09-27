@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
-	import ChatRoom from '$lib/components/chat-room.svelte';
+	import ChatRoomsWindow from '$lib/components/desktop/chat-rooms-window.svelte';
 	import DesktopIcons from '$lib/components/desktop-icons.svelte';
 	import Taskbar from '$lib/components/desktop/taskbar.svelte';
 	import BuddyList from '$lib/components/desktop/buddy-list.svelte';
@@ -14,7 +14,7 @@
 	import PreferencesWindow from '$lib/components/desktop/preferences-window.svelte';
 	import {
 		desktop,
-		type ChatRoomWindowProps,
+		CHAT_WINDOW_ID,
 		type ImWindowProps,
 		type ProfileWindowProps
 	} from '$lib/states/desktop.svelte';
@@ -34,7 +34,7 @@
 		} else {
 			desktop.openLogin('signin');
 		}
-		desktop.focus('room-default');
+		desktop.focus(CHAT_WINDOW_ID);
 	});
 
 	// When the session appears (login) make sure the buddy list is around;
@@ -68,8 +68,7 @@
 
 	{#each desktop.windows as win (win.id)}
 		{#if win.kind === 'chat-room'}
-			{@const p = win.props as unknown as ChatRoomWindowProps}
-			<ChatRoom roomId={p.roomId} roomName={p.roomName} initialTextStyle={pageData.textStyle} />
+			<ChatRoomsWindow initialTextStyle={pageData.textStyle} />
 		{:else if win.kind === 'buddy-list'}
 			<BuddyList />
 		{:else if win.kind === 'im'}

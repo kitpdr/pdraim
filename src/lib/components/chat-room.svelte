@@ -12,7 +12,6 @@
 	import LoadingButton from './ui/button-loading.svelte';
 	import Tooltip from './ui/tooltip.svelte';
 	import LoadingDots from './ui/loading-dots.svelte';
-	import XpWindow from './desktop/xp-window.svelte';
 	import { desktop } from '$lib/states/desktop.svelte';
 	import { useAimClient } from '$lib/aim/client';
 	import { STATUS_LABELS_FR, type AimStatus } from '$lib/types/aim';
@@ -37,15 +36,15 @@
 	let {
 		roomId: requestedRoomId = null,
 		roomName = 'General',
-		initialTextStyle = DEFAULT_TEXT_STYLE
+		initialTextStyle = DEFAULT_TEXT_STYLE,
+		showUserList = false
 	} = $props<{
 		roomId?: Id<'chatRooms'> | null;
 		roomName?: string;
 		initialTextStyle?: TextStyle;
+		/** Mobile only: whether the people list is expanded */
+		showUserList?: boolean;
 	}>();
-
-	// svelte-ignore state_referenced_locally
-	const windowId = requestedRoomId ? `room-${requestedRoomId}` : 'room-default';
 
 	const isClient = browser && Boolean(env.PUBLIC_CONVEX_URL);
 	const aim = useAimClient();
@@ -176,7 +175,6 @@
 	// ============ WINDOW STATE ============
 
 	let isMobile = $state(false);
-	let showUserList = $state(false);
 
 	// ============ USER LIST INTERACTIONS (AIM-style) ============
 
@@ -1052,26 +1050,7 @@
 	});
 </script>
 
-<XpWindow
-	id={windowId}
-	width={800}
-	height={600}
-	minWidth={420}
-	minHeight={420}
-	showMaximize
-	bodyClass="chat-room-body"
->
-	{#snippet menu()}
-		<button type="button" onclick={() => desktop.openBuddyList()}>Contacts</button>
-		<button type="button" onclick={() => desktop.openNewRoom()}>Nouveau salon</button>
-		<button type="button" onclick={() => (showUserList = !showUserList)}>
-			{showUserList || !isMobile ? 'Participants' : 'Participants'}
-		</button>
-		{#if !currentUser}
-			<button type="button" onclick={() => desktop.openLogin('signin')}>Se connecter</button>
-		{/if}
-	{/snippet}
-
+<div class="chat-room">
 	<div class="room-header">
 		<img src="/aim/chat-room-16.png" alt="" width="16" height="16" />
 		<span class="room-name">{roomName}</span>
@@ -1448,9 +1427,16 @@
 			</div>
 		{/if}
 	</div>
-</XpWindow>
+</div>
 
 <style>
+	.chat-room {
+		flex: 1 1 auto;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+	}
+
 	.chat-area,
 	.users-list {
 		font-size: 1rem;

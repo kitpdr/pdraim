@@ -36,10 +36,12 @@ export interface ImWindowProps {
 	otherNickname: string;
 }
 
-export interface ChatRoomWindowProps {
+export interface ChatRoomTab {
 	roomId: Id<'chatRooms'> | null; // null = default room
 	roomName: string;
 }
+
+export const CHAT_WINDOW_ID = 'chat-rooms';
 
 export interface ProfileWindowProps {
 	userId: Id<'users'>;
@@ -50,6 +52,10 @@ class DesktopState {
 	windows = $state<DesktopWindow[]>([]);
 	focusedId = $state<string | null>(null);
 	private nextZ = 10;
+
+	/** Open chat room tabs (all shown in the single chat-room window). */
+	roomTabs = $state<ChatRoomTab[]>([]);
+	activeRoomId = $state<Id<'chatRooms'> | null>(null);
 
 	/** Whether the login "sign on" sequence is running (modem animation). */
 	signingOn = $state(false);
@@ -90,6 +96,10 @@ class DesktopState {
 	}
 
 	close(id: string) {
+		if (id === CHAT_WINDOW_ID) {
+			this.roomTabs = [];
+			this.activeRoomId = null;
+		}
 		this.windows = this.windows.filter((w) => w.id !== id);
 		if (this.focusedId === id) {
 			const top = [...this.windows].filter((w) => !w.minimized).sort((a, b) => b.z - a.z)[0];
@@ -147,15 +157,44 @@ class DesktopState {
 		});
 	}
 
+	/**
+	 * Chat rooms live as tabs inside one "Salon" window. Opening a room adds
+	 * (or selects) its tab and brings the window forward.
+	 */
 	openChatRoom(roomId: Id<'chatRooms'> | null, roomName: string) {
-		const props: ChatRoomWindowProps = { roomId, roomName };
+		if (!this.roomTabs.some((t) => t.roomId === roomId)) {
+			this.roomTabs = [...this.roomTabs, { roomId, roomName }];
+		}
+		this.activeRoomId = roomId;
 		return this.open({
-			id: roomId ? `room-${roomId}` : 'room-default',
+			id: CHAT_WINDOW_ID,
 			kind: 'chat-room',
 			title: `Salon : ${roomName}`,
 			icon: '/aim/chat-room-16.png',
-			props: props as unknown as Record<string, unknown>
+			props: {}
 		});
+	}
+
+	selectRoomTab(roomId: Id<'chatRooms'> | null) {
+		const tab = this.roomTabs.find((t) => t.roomId === roomId);
+		if (!tab) return;
+		this.activeRoomId = roomId;
+		const win = this.get(CHAT_WINDOW_ID);
+		if (win) win.title = `Salon : ${tab.roomName}`;
+	}
+
+	closeRoomTab(roomId: Id<'chatRooms'> | null) {
+		const index = this.roomTabs.findIndex((t) => t.roomId === roomId);
+		if (index === -1) return;
+		this.roomTabs = this.roomTabs.filter((t) => t.roomId !== roomId);
+		if (this.roomTabs.length === 0) {
+			this.close(CHAT_WINDOW_ID);
+			return;
+		}
+		if (this.activeRoomId === roomId) {
+			const next = this.roomTabs[Math.min(index, this.roomTabs.length - 1)];
+			this.selectRoomTab(next.roomId);
+		}
 	}
 
 	openIm(props: ImWindowProps) {
