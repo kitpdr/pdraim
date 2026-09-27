@@ -16,6 +16,26 @@
 
 	// State
 	let showPicker = $state(false);
+	// Fixed viewport position so the dropdown escapes the window's overflow clipping
+	let pickerPos = $state({ left: 0, top: 0 });
+	const PICKER_WIDTH = 420;
+	const PICKER_MAX_HEIGHT = 380;
+
+	function placePicker(button: HTMLElement) {
+		const rect = button.getBoundingClientRect();
+		const margin = 4;
+		const left = Math.min(
+			Math.max(margin, rect.right - PICKER_WIDTH),
+			window.innerWidth - PICKER_WIDTH - margin
+		);
+		// Prefer opening upward (the toolbar sits above the input at the bottom)
+		const above = rect.top - PICKER_MAX_HEIGHT - 2;
+		const top =
+			above >= margin
+				? above
+				: Math.min(rect.bottom + 2, window.innerHeight - PICKER_MAX_HEIGHT - margin);
+		pickerPos = { left: Math.max(margin, left), top: Math.max(margin, top) };
+	}
 	let gradientColors = $state<string[]>([selectedColor || '#000000']);
 	let activeGradientSlot = $state(0);
 
@@ -123,6 +143,7 @@
 	<button
 		onclick={(e) => {
 			e.stopPropagation();
+			if (!showPicker) placePicker(e.currentTarget as HTMLElement);
 			showPicker = !showPicker;
 		}}
 		title={gradientColors.length > 1 ? 'Gradient Color' : 'Text Color'}
@@ -137,7 +158,11 @@
 	<!-- Color picker dropdown -->
 	{#if showPicker}
 		<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-		<div class="picker-dropdown sunken-panel" onclick={(e) => e.stopPropagation()}>
+		<div
+			class="picker-dropdown sunken-panel"
+			style="left: {pickerPos.left}px; top: {pickerPos.top}px;"
+			onclick={(e) => e.stopPropagation()}
+		>
 			<!-- Gradient controls -->
 			<div class="gradient-controls">
 				<div class="gradient-slots">
@@ -233,12 +258,9 @@
 	}
 
 	.picker-dropdown {
-		position: absolute;
-		top: 100%;
-		right: 0; /* Changed from left: 0 to prevent cutoff */
-		z-index: 1000;
+		position: fixed;
+		z-index: 6000; /* above windows and the taskbar */
 		padding: 4px;
-		margin-top: 2px;
 		background: #ece9d8; /* Authentic XP dialog background */
 		width: 420px;
 		max-height: 380px;
@@ -251,9 +273,8 @@
 	/* Responsive positioning for mobile/small screens */
 	@media (max-width: 768px) {
 		.picker-dropdown {
-			position: fixed;
-			top: 50%;
-			left: 50%;
+			top: 50% !important;
+			left: 50% !important;
 			transform: translate(-50%, -50%);
 			right: auto;
 			width: 90vw;
