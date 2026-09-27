@@ -181,7 +181,7 @@
 >
 	<div class="signon">
 		<div class="banner">
-			<img src="/aim/running-man.svg" alt="" width="40" height="40" />
+			<img src="/aim/running-man-48.png" alt="" width="40" height="40" />
 			<div class="brand">
 				<div class="brand-title">PDR AIM</div>
 				<div class="brand-sub">Instant Messenger</div>

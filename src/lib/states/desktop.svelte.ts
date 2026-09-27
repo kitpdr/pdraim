@@ -142,7 +142,7 @@ class DesktopState {
 			id: 'buddy-list',
 			kind: 'buddy-list',
 			title: 'Liste de contacts',
-			icon: '/aim/running-man.svg',
+			icon: '/aim/running-man-16.png',
 			props: {}
 		});
 	}
@@ -173,7 +173,7 @@ class DesktopState {
 			id: 'login',
 			kind: 'login',
 			title: 'Connexion',
-			icon: '/aim/running-man.svg',
+			icon: '/aim/running-man-16.png',
 			props: { tab }
 		});
 	}
@@ -213,7 +213,7 @@ class DesktopState {
 			id: 'preferences',
 			kind: 'preferences',
 			title: 'Préférences',
-			icon: '/aim/setup-icon.png',
+			icon: '/aim/prefs.svg',
 			props: {}
 		});
 	}
@@ -223,7 +223,7 @@ class DesktopState {
 			id: 'about',
 			kind: 'about',
 			title: 'À propos de PDR AIM',
-			icon: '/aim/help-icon.png',
+			icon: '/aim/help.svg',
 			props: {}
 		});
 	}

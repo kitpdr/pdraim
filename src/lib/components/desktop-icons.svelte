@@ -16,7 +16,9 @@
 		{
 			id: 'aim',
 			label: 'PDR AIM',
-			icon: '/desktop/aim-desktop-icon.png',
+			icon: '/desktop/pdraim-icon.png',
+			// Signed out: the sign-on window (which opens the buddy list and unlocks the
+			// chat room once logged in). Signed in: the buddy list.
 			action: () => (currentUser ? desktop.openBuddyList() : desktop.openLogin('signin'))
 		},
 		{
@@ -24,13 +26,6 @@
 			label: 'Salon General',
 			icon: '/aim/chat-room.svg',
 			action: () => desktop.openChatRoom(null, 'General')
-		},
-		{
-			id: 'login',
-			label: 'Connexion',
-			icon: '/desktop/application-x-shellscript.png',
-			action: () => desktop.openLogin('signin'),
-			hidden: Boolean(currentUser)
 		},
 		{
 			id: 'away',
@@ -42,13 +37,13 @@
 		{
 			id: 'prefs',
 			label: 'Préférences',
-			icon: '/aim/setup-icon.png',
+			icon: '/aim/prefs.svg',
 			action: () => desktop.openPreferences()
 		},
 		{
 			id: 'about',
 			label: 'Aide',
-			icon: '/aim/help-icon.png',
+			icon: '/aim/help.svg',
 			action: () => desktop.openAbout()
 		}
 	]);

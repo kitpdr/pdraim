@@ -5,7 +5,7 @@
 
 <XpWindow id="about" width={360} height={260} resizableWindow={false}>
 	<div class="content">
-		<img src="/aim/running-man.svg" alt="" width="48" height="48" />
+		<img src="/aim/running-man-48.png" alt="" width="48" height="48" />
 		<h2>PDR AIM</h2>
 		<p>v0.3.0</p>
 		<p>

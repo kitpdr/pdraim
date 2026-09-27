@@ -311,7 +311,7 @@
 				</div>
 				<div class="identity-text">
 					<strong
-						><img src="/aim/running-man.svg" alt="" width="16" height="16" /> {me.nickname}</strong
+						><img src="/aim/running-man-16.png" alt="" width="16" height="16" /> {me.nickname}</strong
 					><span title={meQuery?.data?.awayMessage ?? ''}
 						>{meQuery?.data?.status === 'away'
 							? `Absent${meQuery.data.awayMessage ? ` : ${meQuery.data.awayMessage}` : ''}`

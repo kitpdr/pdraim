@@ -111,7 +111,7 @@
 			}}><span aria-hidden="true">{soundOn ? '🔊' : '🔇'}</span></button
 		>
 		<img
-			src="/aim/running-man.svg"
+			src="/aim/running-man-16.png"
 			alt=""
 			title={user ? `Statut : ${user.status}` : 'Hors ligne'}
 			width="16"
