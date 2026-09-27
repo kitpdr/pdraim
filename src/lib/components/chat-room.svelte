@@ -289,6 +289,7 @@
 
 	// User counts
 	const usersOnline = $derived(onlineUsers.filter((u) => u.status !== 'offline'));
+	const usersOffline = $derived(onlineUsers.filter((u) => u.status === 'offline'));
 	const selectedUser = $derived(onlineUsers.find((u) => u.id === selectedUserId) ?? null);
 
 	const mentionableUsers = $derived(
@@ -1353,6 +1354,31 @@
 						<span class="nickname">{user.nickname}</span>
 					</div>
 				{/each}
+				{#if usersOffline.length > 0}
+					<div class="offline-separator" role="presentation">Hors ligne</div>
+					{#each usersOffline as user (user.id)}
+						<div
+							class="user offline"
+							class:selected={selectedUserId === user.id}
+							role="option"
+							aria-selected={selectedUserId === user.id}
+							tabindex="0"
+							title={statusLabel(user)}
+							onclick={(e) => {
+								e.stopPropagation();
+								selectedUserId = user.id;
+								closeUserMenu();
+							}}
+							ondblclick={() => openImWith(user)}
+							oncontextmenu={(e) => openUserMenu(e, user)}
+							onkeydown={(e) => {
+								if (e.key === 'Enter') openImWith(user);
+							}}
+						>
+							<span class="nickname">{user.nickname}</span>
+						</div>
+					{/each}
+				{/if}
 			</div>
 			<div class="people-actions">
 				<button
@@ -1520,6 +1546,20 @@
 		border: 1px dotted transparent;
 		user-select: none;
 		overflow: hidden;
+	}
+
+	.offline-separator {
+		margin: 4px 2px 2px;
+		padding-top: 3px;
+		border-top: 1px solid #d4d0c8;
+		color: #808080;
+		font-size: 0.7rem;
+		user-select: none;
+	}
+
+	.user.offline .nickname {
+		color: #808080;
+		font-style: italic;
 	}
 
 	.user .nickname {
