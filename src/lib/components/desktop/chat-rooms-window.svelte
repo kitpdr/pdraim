@@ -4,11 +4,19 @@
 	import { desktop, CHAT_WINDOW_ID } from '$lib/states/desktop.svelte';
 	import { chatState } from '$lib/states/chat.svelte';
 	import type { TextStyle } from '$lib/types/text-formatting';
+	import { useQuery } from 'convex-svelte';
+	import { api } from '../../../convex/_generated/api';
+	import { convexAvailable } from '$lib/aim/client';
 
 	let { initialTextStyle }: { initialTextStyle?: TextStyle } = $props();
 
 	const currentUser = $derived(chatState.getCurrentUser());
 	let showUserList = $state(false);
+
+	// Room topics show as tab tooltips
+	const roomsQuery = convexAvailable ? useQuery(api.aim.getGroupRooms, {}) : null;
+	const topicOf = (roomId: string | null) =>
+		roomsQuery?.data?.find((r) => (roomId ? r.id === roomId : r.isDefault))?.topic;
 
 	const tabKey = (roomId: string | null) => roomId ?? 'default';
 </script>
@@ -39,6 +47,7 @@
 				role="tab"
 				aria-selected={active}
 				aria-controls="room-panel-{tabKey(tab.roomId)}"
+				title={topicOf(tab.roomId) ?? tab.roomName}
 				onclick={() => desktop.selectRoomTab(tab.roomId)}
 				onauxclick={(e) => {
 					if (e.button === 1 && desktop.roomTabs.length > 1) desktop.closeRoomTab(tab.roomId);
@@ -72,7 +81,7 @@
 				class="tab-panel"
 				hidden={tab.roomId !== desktop.activeRoomId}
 			>
-				<ChatRoom roomId={tab.roomId} roomName={tab.roomName} {initialTextStyle} {showUserList} />
+				<ChatRoom roomId={tab.roomId} {initialTextStyle} {showUserList} />
 			</div>
 		{/each}
 	</div>

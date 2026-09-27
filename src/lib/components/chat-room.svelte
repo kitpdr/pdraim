@@ -35,12 +35,10 @@
 	// Props
 	let {
 		roomId: requestedRoomId = null,
-		roomName = 'General',
 		initialTextStyle = DEFAULT_TEXT_STYLE,
 		showUserList = false
 	} = $props<{
 		roomId?: Id<'chatRooms'> | null;
-		roomName?: string;
 		initialTextStyle?: TextStyle;
 		/** Mobile only: whether the people list is expanded */
 		showUserList?: boolean;
@@ -63,10 +61,6 @@
 	const roomId = $derived(
 		(requestedRoomId ?? defaultRoomQuery?.data?.id) as Id<'chatRooms'> | undefined
 	);
-
-	// Room topic (from public group rooms list)
-	const groupRoomsQuery = isClient ? useQuery(convexApi.aim.getGroupRooms, {}) : null;
-	const roomTopic = $derived(groupRoomsQuery?.data?.find((r) => r.id === roomId)?.topic ?? null);
 
 	// Subscribe to messages - skipped until the room ID is available
 	const messagesQuery = isClient
@@ -1051,21 +1045,18 @@
 </script>
 
 <div class="chat-room">
-	<div class="room-header">
-		<img src="/aim/chat-room-16.png" alt="" width="16" height="16" />
-		<span class="room-name">{roomName}</span>
-		{#if roomTopic}
-			<span class="room-topic">— {roomTopic}</span>
-		{/if}
-		{#if mentionUnreadCount > 0}
-			<span class="room-mentions"
-				>({mentionUnreadCount} mention{mentionUnreadCount > 1 ? 's' : ''})</span
-			>
-		{/if}
-		{#if connectionError}
-			<span class="connection-error">⚠️ {connectionError}</span>
-		{/if}
-	</div>
+	{#if mentionUnreadCount > 0 || connectionError}
+		<div class="room-status">
+			{#if mentionUnreadCount > 0}
+				<span class="room-mentions"
+					>({mentionUnreadCount} mention{mentionUnreadCount > 1 ? 's' : ''})</span
+				>
+			{/if}
+			{#if connectionError}
+				<span class="connection-error">⚠️ {connectionError}</span>
+			{/if}
+		</div>
+	{/if}
 
 	<div class="room-panel" bind:this={roomPanel}>
 		<div class="chat-container">
@@ -1449,32 +1440,12 @@
 	}
 
 	/* ===== Layout inside the XP window ===== */
-	.room-header {
+	.room-status {
 		display: flex;
-		align-items: center;
+		justify-content: flex-end;
 		gap: 6px;
-		padding: 3px 6px;
-		margin-bottom: 4px;
-		background: #ece9d8;
-		border-bottom: 1px solid #aca899;
-		color: #333;
-		font-family: Tahoma, 'Pixelated MS Sans Serif', sans-serif;
 		font-size: 11px;
-		flex: 0 0 auto;
-		min-width: 0;
-	}
-
-	.room-name {
-		font-weight: bold;
-	}
-
-	.room-topic {
-		color: #666;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		min-width: 0;
-		flex: 1;
+		margin-bottom: 3px;
 	}
 
 	.room-mentions {
