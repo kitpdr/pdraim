@@ -64,8 +64,7 @@ export async function createSession(token: string, userId: string): Promise<Sess
  * Returns an object with both session and user if valid, or nulls if not.
  */
 export type SessionValidationResult =
-	| { session: Session; user: SafeUser }
-	| { session: null; user: null };
+	{ session: Session; user: SafeUser } | { session: null; user: null };
 
 // Validate a session token by converting it to its SHA-256 hash, checking expiration, and fetching the user.
 export async function validateSessionToken(token: string): Promise<SessionValidationResult> {
