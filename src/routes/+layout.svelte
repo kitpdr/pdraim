@@ -196,7 +196,9 @@
 	$effect(() => {
 		if (!browser) return;
 
-		const currentUserJson = data.user ? JSON.stringify(data.user) : null;
+		const currentUserJson = data.user
+			? JSON.stringify({ user: data.user, sessionId: data.session?.id ?? null })
+			: null;
 		if (currentUserJson === lastUserUpdate) {
 			console.debug('Skipping duplicate user update');
 			return;

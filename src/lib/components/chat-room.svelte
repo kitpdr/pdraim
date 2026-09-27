@@ -70,12 +70,10 @@
 	const groupRoomsQuery = isClient ? useQuery(convexApi.aim.getGroupRooms, {}) : null;
 	const roomTopic = $derived(groupRoomsQuery?.data?.find((r) => r.id === roomId)?.topic ?? null);
 
-	// Subscribe to messages - only when room ID is available
-	const messagesQuery = $derived(
-		roomId && isClient
-			? useQuery(convexApi.queries.getMessagesPublic, () => ({ roomId: roomId! }))
-			: null
-	);
+	// Subscribe to messages - skipped until the room ID is available
+	const messagesQuery = isClient
+		? useQuery(convexApi.queries.getMessagesPublic, () => (roomId ? { roomId } : 'skip'))
+		: null;
 
 	const convexClient = isClient ? useConvexClient() : null;
 

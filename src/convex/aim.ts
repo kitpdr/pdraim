@@ -190,6 +190,9 @@ export const getRoomMessages = authQuery({
 export const getRoomTyping = authQuery({
 	args: { roomId: v.id('chatRooms') },
 	handler: async (ctx, args) => {
+		const room = await ctx.db.get(args.roomId);
+		if (!room) return [];
+		await assertRoomAccess(ctx, room, ctx.user._id);
 		const since = Date.now() - TYPING_TTL_MS;
 		const rows = await ctx.db
 			.query('typing')
@@ -335,6 +338,9 @@ export const createGroupRoom = authMutation({
 export const markRoomRead = authMutation({
 	args: { roomId: v.id('chatRooms') },
 	handler: async (ctx, args) => {
+		const room = await ctx.db.get(args.roomId);
+		if (!room) throw new Error('Chat room not found');
+		await assertRoomAccess(ctx, room, ctx.user._id);
 		const now = Date.now();
 		const existing = await ctx.db
 			.query('roomReads')
@@ -358,6 +364,9 @@ export const markRoomRead = authMutation({
 export const setTyping = authMutation({
 	args: { roomId: v.id('chatRooms'), typing: v.boolean() },
 	handler: async (ctx, args) => {
+		const room = await ctx.db.get(args.roomId);
+		if (!room) throw new Error('Chat room not found');
+		await assertRoomAccess(ctx, room, ctx.user._id);
 		const existing = await ctx.db
 			.query('typing')
 			.withIndex('by_user_room', (q) => q.eq('userId', ctx.user._id).eq('roomId', args.roomId))

@@ -1,7 +1,7 @@
 import { query } from './_generated/server';
 import { authQuery } from './auth';
 import { v } from 'convex/values';
-import { toPublicUser } from './aim';
+import { toPublicUser, assertRoomAccess } from './aim';
 
 // Timeout threshold for marking users as offline (2 minutes)
 const ONLINE_TIMEOUT_MS = 2 * 60 * 1000;
@@ -36,6 +36,10 @@ export const getMessagesPublic = query({
 		limit: v.optional(v.number())
 	},
 	handler: async (ctx, args) => {
+		// Direct (IM) rooms are never public
+		const room = await ctx.db.get(args.roomId);
+		if (!room || room.type === 'direct') return [];
+
 		// Enforce max limit and clamp to a safe positive integer
 		const rawLimit = args.limit ?? PUBLIC_MESSAGE_LIMIT;
 		const limit = Math.max(1, Math.min(PUBLIC_MESSAGE_LIMIT, Math.floor(rawLimit)));
@@ -84,6 +88,10 @@ export const getMessagesPublicPage = query({
 		beforeTimestamp: v.optional(v.number())
 	},
 	handler: async (ctx, args) => {
+		// Direct (IM) rooms are never public
+		const room = await ctx.db.get(args.roomId);
+		if (!room || room.type === 'direct') return { messages: [], hasMore: false };
+
 		const rawLimit = args.limit ?? 50;
 		const limit = Math.max(1, Math.min(PUBLIC_MESSAGE_LIMIT, Math.floor(rawLimit)));
 
@@ -167,6 +175,10 @@ export const getMessages = authQuery({
 		limit: v.optional(v.number())
 	},
 	handler: async (ctx, args) => {
+		const room = await ctx.db.get(args.roomId);
+		if (!room) return [];
+		await assertRoomAccess(ctx, room, ctx.user._id);
+
 		const MAX_AUTH_MESSAGE_LIMIT = 200;
 		const rawLimit = args.limit ?? 100;
 		const limit = Math.max(1, Math.min(MAX_AUTH_MESSAGE_LIMIT, Math.floor(rawLimit)));
