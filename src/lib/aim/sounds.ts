@@ -1,9 +1,10 @@
 /**
- * AIM sound effects synthesized with the Web Audio API.
+ * AIM sound effects.
  *
- * No audio files are shipped: everything is generated procedurally so the
- * project stays free of copyrighted samples. Each sound is a small sketch
- * evoking the original:
+ * If a sample exists in /static/sounds/<name>.(mp3|wav|ogg) it is played;
+ * otherwise a Web Audio sketch is synthesized. No audio files are shipped
+ * in the repository so the project stays free of copyrighted samples.
+ * Each synthesized sound evokes the original:
  *  - doorOpen  : "buddy in"  — creak + soft thud
  *  - doorSlam  : "buddy out" — sharp slam
  *  - imReceive : incoming IM "ding"
@@ -147,7 +148,14 @@ const players: Record<AimSound, (ac: AudioContext, dest: AudioNode, t: number) =
 	doorSlam(ac, dest, t) {
 		thud(ac, dest, t, 1.0, 0.22);
 		// door frame rattle
-		tone(ac, dest, { type: 'square', freq: 90, freqEnd: 60, start: t + 0.02, duration: 0.12, gain: 0.12 });
+		tone(ac, dest, {
+			type: 'square',
+			freq: 90,
+			freqEnd: 60,
+			start: t + 0.02,
+			duration: 0.12,
+			gain: 0.12
+		});
 	},
 	imReceive(ac, dest, t) {
 		// Two-note ding, bright
@@ -185,8 +193,22 @@ const players: Record<AimSound, (ac: AudioContext, dest: AudioNode, t: number) =
 		// Handshake: answer tone, then chirps
 		const h = t + 1.7;
 		tone(ac, dest, { freq: 2100, start: h, duration: 0.6, gain: 0.07 });
-		tone(ac, dest, { type: 'square', freq: 1200, freqEnd: 2400, start: h + 0.7, duration: 0.35, gain: 0.05 });
-		tone(ac, dest, { type: 'square', freq: 2400, freqEnd: 1200, start: h + 1.1, duration: 0.35, gain: 0.05 });
+		tone(ac, dest, {
+			type: 'square',
+			freq: 1200,
+			freqEnd: 2400,
+			start: h + 0.7,
+			duration: 0.35,
+			gain: 0.05
+		});
+		tone(ac, dest, {
+			type: 'square',
+			freq: 2400,
+			freqEnd: 1200,
+			start: h + 1.1,
+			duration: 0.35,
+			gain: 0.05
+		});
 		// Noise burst (training)
 		const src = ac.createBufferSource();
 		src.buffer = noiseBuffer(ac, 1.2);
@@ -212,10 +234,47 @@ export const SOUND_DURATIONS_MS: Record<AimSound, number> = {
 	modem: 4500
 };
 
+// Sample cache: undefined = not probed yet, null = no file available
+const samples = new Map<AimSound, AudioBuffer | null>();
+const SAMPLE_EXTENSIONS = ['mp3', 'wav', 'ogg'];
+
+async function loadSample(ac: AudioContext, name: AimSound): Promise<AudioBuffer | null> {
+	if (samples.has(name)) return samples.get(name) ?? null;
+	samples.set(name, null);
+	for (const ext of SAMPLE_EXTENSIONS) {
+		try {
+			const res = await fetch(`/sounds/${name}.${ext}`, { cache: 'force-cache' });
+			if (!res.ok || !(res.headers.get('content-type') ?? '').startsWith('audio/')) continue;
+			const buffer = await ac.decodeAudioData(await res.arrayBuffer());
+			samples.set(name, buffer);
+			return buffer;
+		} catch {
+			// try next extension
+		}
+	}
+	return null;
+}
+
+/** Warm the sample cache so the first playback is not delayed by a fetch. */
+export function preloadSounds() {
+	const ac = getContext();
+	if (!ac) return;
+	for (const name of Object.keys(players) as AimSound[]) void loadSample(ac, name);
+}
+
 export function playSound(name: AimSound) {
 	if (!enabled) return;
 	const ac = getContext();
 	if (!ac) return;
+	const cached = samples.get(name);
+	if (cached) {
+		const src = ac.createBufferSource();
+		src.buffer = cached;
+		src.connect(ac.destination);
+		src.start();
+		return;
+	}
+	if (cached === undefined) void loadSample(ac, name);
 	const master = ac.createGain();
 	master.gain.value = 0.9;
 	master.connect(ac.destination);

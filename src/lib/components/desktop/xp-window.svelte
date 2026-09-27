@@ -43,7 +43,7 @@
 	const win = $derived(desktop.get(id));
 	const focused = $derived(desktop.focusedId === id);
 
-	// svelte-ignore state_referenced_locally -- initial geometry only; the user moves/resizes afterwards
+	// svelte-ignore state_referenced_locally
 	let w = $state(width);
 	// svelte-ignore state_referenced_locally
 	let h = $state(height);
@@ -136,9 +136,7 @@
 			<div class="title-bar-controls">
 				<button aria-label="Minimize" onclick={minimize}></button>
 				{#if showMaximize && !isMobile}
-					<button
-						aria-label={isMaximized ? 'Restore' : 'Maximize'}
-						onclick={toggleMaximize}
+					<button aria-label={isMaximized ? 'Restore' : 'Maximize'} onclick={toggleMaximize}
 					></button>
 				{/if}
 				<button aria-label="Close" onclick={close}></button>
@@ -174,7 +172,14 @@
 	/* xp.css already styles active/inactive gradients through :not(:focus-within);
 	   force the inactive look based on our own focus tracking instead. */
 	.xp-window.inactive .title-bar {
-		background: linear-gradient(180deg, #7697e7 0%, #7e9ee3 8%, #94afec 40%, #97b4e9 88%, #82a5e4 100%);
+		background: linear-gradient(
+			180deg,
+			#7697e7 0%,
+			#7e9ee3 8%,
+			#94afec 40%,
+			#97b4e9 88%,
+			#82a5e4 100%
+		);
 	}
 
 	.title-bar {

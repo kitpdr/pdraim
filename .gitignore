@@ -31,3 +31,6 @@ migration/
 
 # Plans
 docs/plans/
+# Local audio samples (copyrighted, never committed)
+static/sounds/*
+!static/sounds/README.md

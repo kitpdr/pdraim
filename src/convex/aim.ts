@@ -48,11 +48,7 @@ export function directKeyFor(a: Id<'users'>, b: Id<'users'>) {
 	return [a, b].sort().join(':');
 }
 
-export async function assertRoomAccess(
-	ctx: QueryCtx,
-	room: Doc<'chatRooms'>,
-	userId: Id<'users'>
-) {
+export async function assertRoomAccess(ctx: QueryCtx, room: Doc<'chatRooms'>, userId: Id<'users'>) {
 	if (room.type === 'direct' && !(room.memberIds ?? []).includes(userId)) {
 		throw new Error('Not a member of this conversation');
 	}
@@ -147,9 +143,7 @@ export const getMyDirectRooms = authQuery({
 				};
 			})
 		);
-		return result.sort(
-			(a, b) => (b.lastMessage?.timestamp ?? 0) - (a.lastMessage?.timestamp ?? 0)
-		);
+		return result.sort((a, b) => (b.lastMessage?.timestamp ?? 0) - (a.lastMessage?.timestamp ?? 0));
 	}
 });
 
@@ -246,7 +240,8 @@ export const updateProfile = authMutation({
 	args: { profile: v.optional(v.string()), buddyIcon: v.optional(v.string()) },
 	handler: async (ctx, args) => {
 		const patch: Partial<Doc<'users'>> = {};
-		if (args.profile !== undefined) patch.profile = args.profile.trim().slice(0, MAX_PROFILE_LENGTH);
+		if (args.profile !== undefined)
+			patch.profile = args.profile.trim().slice(0, MAX_PROFILE_LENGTH);
 		if (args.buddyIcon !== undefined) {
 			if (!/^[a-z0-9-]{1,32}$/.test(args.buddyIcon)) throw new Error('Invalid buddy icon');
 			patch.buddyIcon = args.buddyIcon;

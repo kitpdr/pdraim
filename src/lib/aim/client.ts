@@ -29,10 +29,8 @@ export function tokenHash() {
  */
 export function authQuery<Q extends FunctionReference<'query'>>(
 	fn: Q,
-	args: () => Omit<FunctionArgs<Q>, 'tokenHash'> | 'skip' = () => ({}) as Omit<
-		FunctionArgs<Q>,
-		'tokenHash'
-	>
+	args: () => Omit<FunctionArgs<Q>, 'tokenHash'> | 'skip' = () =>
+		({}) as Omit<FunctionArgs<Q>, 'tokenHash'>
 ) {
 	if (!convexAvailable) return null;
 	return useQuery(fn, () => {
