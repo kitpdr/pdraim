@@ -6,6 +6,8 @@
  */
 import type { Id } from '../../convex/_generated/dataModel';
 
+const SHOW_TIMESTAMPS_KEY = 'pdraim-show-timestamps';
+
 export type WindowKind =
 	| 'buddy-list'
 	| 'chat-room'
@@ -59,6 +61,16 @@ class DesktopState {
 
 	/** Whether the login "sign on" sequence is running (modem animation). */
 	signingOn = $state(false);
+
+	/** Preferences: show message times in IM windows. */
+	showTimestamps = $state(
+		typeof localStorage === 'undefined' || localStorage.getItem(SHOW_TIMESTAMPS_KEY) !== 'false'
+	);
+
+	setShowTimestamps(value: boolean) {
+		this.showTimestamps = value;
+		localStorage.setItem(SHOW_TIMESTAMPS_KEY, String(value));
+	}
 
 	focused = $derived(this.windows.find((w) => w.id === this.focusedId) ?? null);
 	taskbarWindows = $derived([...this.windows].sort((a, b) => a.id.localeCompare(b.id)));
@@ -162,6 +174,12 @@ class DesktopState {
 	 * (or selects) its tab and brings the window forward.
 	 */
 	openChatRoom(roomId: Id<'chatRooms'> | null, roomName: string) {
+		// General is the default room (tab id null); group names are unique case-insensitively,
+		// so opening it by concrete id must reuse that tab instead of duplicating it.
+		if (roomName.toLowerCase() === 'general') {
+			roomId = null;
+			roomName = 'General';
+		}
 		if (!this.roomTabs.some((t) => t.roomId === roomId)) {
 			this.roomTabs = [...this.roomTabs, { roomId, roomName }];
 		}

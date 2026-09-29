@@ -11,7 +11,7 @@
 	import { desktop } from '$lib/states/desktop.svelte';
 	import { chatState } from '$lib/states/chat.svelte';
 	import { createSafeUser } from '$lib/types/chat';
-	import { playSound, unlockAudio, SOUND_DURATIONS_MS } from '$lib/aim/sounds';
+	import { playSound, unlockAudio, SOUND_DURATIONS_MS } from '$lib/aim/sounds.svelte';
 	import {
 		loginSchema,
 		createRegistrationSchema,
@@ -58,18 +58,37 @@
 		'Démarrage des services…'
 	];
 
-	function wait(ms: number) {
-		return new Promise((r) => setTimeout(r, ms));
+	// Aborted by "Annuler": stops the login request and every later step of the sequence.
+	let signOnAbort: AbortController | null = null;
+
+	function wait(ms: number, signal: AbortSignal) {
+		return new Promise<void>((resolve, reject) => {
+			const timer = setTimeout(resolve, ms);
+			signal.addEventListener(
+				'abort',
+				() => {
+					clearTimeout(timer);
+					reject(signal.reason);
+				},
+				{ once: true }
+			);
+		});
 	}
 
-	async function login(name: string, pass: string): Promise<{ ok: boolean; error?: string }> {
+	async function login(
+		name: string,
+		pass: string,
+		signal: AbortSignal
+	): Promise<{ ok: boolean; error?: string }> {
 		const res = await fetch('/api/session/login', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ username: name, password: pass })
+			body: JSON.stringify({ username: name, password: pass }),
+			signal
 		});
 		const data = await res.json();
 		if (!res.ok) return { ok: false, error: data.error || 'Connexion impossible.' };
+		signal.throwIfAborted();
 		chatState.setCurrentUser(data.user ? createSafeUser(data.user) : null);
 		await invalidate('app:session');
 		await invalidate('app:chat');
@@ -77,6 +96,10 @@
 	}
 
 	async function runSignOn(name: string, pass: string) {
+		signOnAbort?.abort();
+		const controller = new AbortController();
+		signOnAbort = controller;
+		const { signal } = controller;
 		unlockAudio();
 		error = '';
 		step = 1;
@@ -84,9 +107,9 @@
 		playSound('modem');
 		const modemStart = Date.now();
 		try {
-			await wait(900);
+			await wait(900, signal);
 			step = 2;
-			const result = await login(name, pass);
+			const result = await login(name, pass, signal);
 			if (!result.ok) {
 				error = result.error ?? 'Connexion impossible.';
 				step = 0;
@@ -97,15 +120,28 @@
 			step = 3;
 			// Let the modem "handshake" finish before the welcome chime
 			const remaining = SOUND_DURATIONS_MS.modem - (Date.now() - modemStart);
-			await wait(Math.max(400, Math.min(remaining, 2500)));
+			await wait(Math.max(400, Math.min(remaining, 2500)), signal);
 			playSound('welcome');
 			signedOnAs = name;
 			desktop.openBuddyList();
 			desktop.focus(WINDOW_ID);
-			await wait(1200);
+			await wait(1200, signal);
 			desktop.close(WINDOW_ID);
+		} catch (err) {
+			if (!signal.aborted) throw err;
+			// Cancelled after the credentials were sent: the server may have created a
+			// session, so honour "Annuler" by signing out (a no-op without a session).
+			if (step >= 2 && signOnAbort === controller) {
+				await fetch('/api/session/logout', { method: 'POST' }).catch(() => {});
+				chatState.setCurrentUser(null);
+				await invalidate('app:session');
+			}
 		} finally {
-			desktop.signingOn = false;
+			if (signOnAbort === controller) {
+				signOnAbort = null;
+				desktop.signingOn = false;
+				if (signal.aborted) step = 0;
+			}
 		}
 	}
 
@@ -169,8 +205,8 @@
 	}
 
 	function cancelSignOn() {
-		step = 0;
-		desktop.signingOn = false;
+		// runSignOn's catch/finally resets the sequence state
+		signOnAbort?.abort();
 	}
 </script>
 

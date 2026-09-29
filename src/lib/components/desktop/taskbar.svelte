@@ -2,10 +2,10 @@
 	import { onMount } from 'svelte';
 	import { desktop } from '$lib/states/desktop.svelte';
 	import { chatState } from '$lib/states/chat.svelte';
-	import { soundsEnabled, setSoundsEnabled, unlockAudio } from '$lib/aim/sounds';
+	import { soundsEnabled, setSoundsEnabled, unlockAudio } from '$lib/aim/sounds.svelte';
 
 	let menuOpen = $state(false);
-	let soundOn = $state(true);
+	const soundOn = $derived(soundsEnabled());
 	let clock = $state('');
 	let menuElement = $state<HTMLElement>();
 	let startElement = $state<HTMLButtonElement>();
@@ -16,7 +16,6 @@
 	}
 
 	onMount(() => {
-		soundOn = soundsEnabled();
 		updateClock();
 		const timer = setInterval(updateClock, 30_000);
 		function outside(event: PointerEvent) {
@@ -105,8 +104,7 @@
 			aria-label={soundOn ? 'Désactiver les sons' : 'Activer les sons'}
 			onclick={() => {
 				unlockAudio();
-				soundOn = !soundsEnabled();
-				setSoundsEnabled(soundOn);
+				setSoundsEnabled(!soundOn);
 			}}
 			><img
 				src={soundOn ? '/aim/xp-volume-16.png' : '/aim/xp-volume-muted-16.png'}

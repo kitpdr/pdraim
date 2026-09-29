@@ -5,14 +5,13 @@
 	import type { Id } from '../../../convex/_generated/dataModel';
 	import type { EnrichedMessage, SafeUser } from '$lib/types/chat';
 	import { authQuery, useAimClient } from '$lib/aim/client';
-	import { playSound } from '$lib/aim/sounds';
+	import { playSound } from '$lib/aim/sounds.svelte';
 	import { STATUS_LABELS_FR, type AimStatus } from '$lib/types/aim';
 	import { chatState } from '$lib/states/chat.svelte';
 	import { desktop } from '$lib/states/desktop.svelte';
 	import { api } from '$lib/api/client';
 	import { DEFAULT_TEXT_STYLE, type TextStyle } from '$lib/types/text-formatting';
 	import { MAX_MESSAGE_LENGTH } from '$lib/validation/message';
-	import { debounce } from '$lib/utils/chat-window-state';
 	import { formatFrenchTime } from '$lib/utils/date-format';
 	import XpWindow from './xp-window.svelte';
 	import FormattedMessage from '../formatted-message.svelte';
@@ -69,14 +68,6 @@
 	let previousRoom: string | null = null;
 	const disabled = $derived(!currentUser || sending || cooldownSeconds > 0);
 
-	const saveStyle = debounce((style: TextStyle) => {
-		void api.textPreferences.save({
-			defaultStyle: style,
-			allowFormatting: true,
-			maxMessageLength: MAX_MESSAGE_LENGTH
-		});
-	}, 1500);
-
 	// Load once per signed-in identity; do not persist the fetched default as an edit.
 	$effect(() => {
 		const userId = currentUser?.id;
@@ -100,12 +91,22 @@
 			active = false;
 		};
 	});
+	// Debounced save: the effect cleanup cancels a pending save on unmount, identity
+	// change or a newer edit, so a style is never saved under another session.
 	$effect(() => {
 		const style = JSON.stringify(textStyle);
-		if (styleReady && currentUser && style !== loadedStyle) {
+		if (!styleReady || !currentUser || style === loadedStyle) return;
+		const timer = setTimeout(() => {
 			loadedStyle = style;
-			saveStyle(JSON.parse(style) as TextStyle);
-		}
+			api.textPreferences
+				.save({
+					defaultStyle: JSON.parse(style) as TextStyle,
+					allowFormatting: true,
+					maxMessageLength: MAX_MESSAGE_LENGTH
+				})
+				.catch((err) => console.debug('Style save failed', err));
+		}, 1500);
+		return () => clearTimeout(timer);
 	});
 
 	function stopTyping() {
@@ -285,10 +286,9 @@
 							class:me={message.senderId === currentUser?.id}
 							class="nick"
 							title={new Date(message.timestamp).toLocaleString('fr-FR')}
-							>{message.user.nickname} ({formatFrenchTime(new Date(message.timestamp)).replace(
-								'h',
-								':'
-							)}):</span
+							>{message.user.nickname}{desktop.showTimestamps
+								? ` (${formatFrenchTime(new Date(message.timestamp)).replace('h', ':')})`
+								: ''}:</span
 						>
 						<FormattedMessage {message} allowFormatting={true} />
 					</div>{/if}

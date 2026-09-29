@@ -19,19 +19,15 @@ export type AimSound = 'doorOpen' | 'doorSlam' | 'imReceive' | 'imSend' | 'welco
 const STORAGE_KEY = 'pdraim-sounds-enabled';
 
 let ctx: AudioContext | null = null;
-let enabled = true;
-
-if (browser) {
-	const stored = localStorage.getItem(STORAGE_KEY);
-	enabled = stored === null ? true : stored === 'true';
-}
+// Reactive so every sound toggle (taskbar, preferences) shows the same value.
+const sound = $state({ enabled: browser ? localStorage.getItem(STORAGE_KEY) !== 'false' : true });
 
 export function soundsEnabled() {
-	return enabled;
+	return sound.enabled;
 }
 
 export function setSoundsEnabled(value: boolean) {
-	enabled = value;
+	sound.enabled = value;
 	if (browser) localStorage.setItem(STORAGE_KEY, String(value));
 }
 
@@ -234,7 +230,9 @@ export const SOUND_DURATIONS_MS: Record<AimSound, number> = {
 	modem: 4500
 };
 
-// Sample cache: one in-flight/resolved promise per sound (null = no file available)
+// Sample cache: one in-flight/resolved promise per sound (null = no file available).
+// Not UI state, so a plain Map is intended.
+// eslint-disable-next-line svelte/prefer-svelte-reactivity
 const samples = new Map<AimSound, Promise<AudioBuffer | null>>();
 const SAMPLE_EXTENSIONS = ['mp3', 'wav', 'ogg'];
 
@@ -266,7 +264,7 @@ export function preloadSounds() {
 }
 
 export function playSound(name: AimSound) {
-	if (!enabled) return;
+	if (!sound.enabled) return;
 	const ac = getContext();
 	if (!ac) return;
 	// Always wait for the sample probe so the first play never falls back to the

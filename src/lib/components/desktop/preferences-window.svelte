@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import XpWindow from './xp-window.svelte';
 	import { desktop } from '$lib/states/desktop.svelte';
 	import {
@@ -8,7 +7,7 @@
 		playSound,
 		unlockAudio,
 		type AimSound
-	} from '$lib/aim/sounds';
+	} from '$lib/aim/sounds.svelte';
 
 	const sounds: { label: string; name: AimSound }[] = [
 		{ label: "Porte qui s'ouvre", name: 'doorOpen' },
@@ -18,25 +17,21 @@
 		{ label: 'Bienvenue', name: 'welcome' },
 		{ label: 'Modem 56k', name: 'modem' }
 	];
-	let soundOn = $state(true);
-	let timestamps = $state(true);
-	onMount(() => {
-		soundOn = soundsEnabled();
-		timestamps = localStorage.getItem('pdraim-show-timestamps') !== 'false';
-	});
-	function changeSound() {
-		setSoundsEnabled(soundOn);
-		if (soundOn) unlockAudio();
+	const soundOn = $derived(soundsEnabled());
+	function changeSound(event: Event) {
+		const on = (event.currentTarget as HTMLInputElement).checked;
+		setSoundsEnabled(on);
+		if (on) unlockAudio();
 	}
-	function changeTimestamps() {
-		localStorage.setItem('pdraim-show-timestamps', String(timestamps));
+	function changeTimestamps(event: Event) {
+		desktop.setShowTimestamps((event.currentTarget as HTMLInputElement).checked);
 	}
 </script>
 
 <XpWindow id="preferences" width={380} height={320} resizableWindow={false}>
 	<div class="content">
 		<label
-			><input type="checkbox" bind:checked={soundOn} onchange={changeSound} /> Sons activés (porte, ding…)</label
+			><input type="checkbox" checked={soundOn} onchange={changeSound} /> Sons activés (porte, ding…)</label
 		>
 		<div class="sound-list">
 			{#each sounds as sound (sound.name)}
@@ -52,7 +47,8 @@
 			{/each}
 		</div>
 		<label
-			><input type="checkbox" bind:checked={timestamps} onchange={changeTimestamps} /> Afficher les horodatages</label
+			><input type="checkbox" checked={desktop.showTimestamps} onchange={changeTimestamps} /> Afficher
+			les horodatages</label
 		>
 		<div class="actions"><button onclick={() => desktop.close('preferences')}>Fermer</button></div>
 	</div>

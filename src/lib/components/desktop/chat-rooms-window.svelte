@@ -49,26 +49,27 @@
 				aria-controls="room-panel-{tabKey(tab.roomId)}"
 				title={topicOf(tab.roomId) ?? tab.roomName}
 				onclick={() => desktop.selectRoomTab(tab.roomId)}
+				onkeydown={(e) => {
+					if (e.key === 'Delete' && desktop.roomTabs.length > 1) desktop.closeRoomTab(tab.roomId);
+				}}
 				onauxclick={(e) => {
 					if (e.button === 1 && desktop.roomTabs.length > 1) desktop.closeRoomTab(tab.roomId);
 				}}
 			>
 				<img src="/aim/chat-room-16.png" alt="" width="14" height="14" />
 				<span>{tab.roomName}</span>
-				{#if desktop.roomTabs.length > 1}
-					<span
-						class="tab-close"
-						role="button"
-						tabindex="-1"
-						aria-label="Fermer {tab.roomName}"
-						onclick={(e) => {
-							e.stopPropagation();
-							desktop.closeRoomTab(tab.roomId);
-						}}
-						onkeydown={() => {}}>×</span
-					>
-				{/if}
 			</button>
+			{#if desktop.roomTabs.length > 1}
+				<!-- Sibling of the tab (a button cannot contain another button) -->
+				<button
+					type="button"
+					class="tab-close"
+					class:active
+					aria-label="Fermer {tab.roomName}"
+					title="Fermer {tab.roomName}"
+					onclick={() => desktop.closeRoomTab(tab.roomId)}>×</button
+				>
+			{/if}
 		{/each}
 	</menu>
 
@@ -111,12 +112,20 @@
 		white-space: nowrap;
 	}
 
-	.tab-close {
-		margin-left: 2px;
-		padding: 0 3px;
+	.room-tabs button.tab-close {
+		margin-left: -1px;
+		padding: 0 4px;
 		line-height: 12px;
 		color: #555;
 		cursor: default;
+	}
+
+	.room-tabs button.tab-close.active {
+		background-color: #ece9d8;
+		position: relative;
+		z-index: 8;
+		margin-top: -2px;
+		margin-bottom: 1px;
 	}
 
 	.tab-close:hover {
