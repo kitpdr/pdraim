@@ -5,7 +5,7 @@ import type { SendMessageResponse, GetMessagesResponse } from '$lib/types/payloa
 import { error, isHttpError } from '@sveltejs/kit';
 import { createLogger } from '$lib/utils/logger.server';
 import { sanitizeStyleData } from '$lib/validation/text-formatting';
-import { sendMessageSchema } from '$lib/validation/message';
+import { sendMessageSchema, PUBLIC_PREVIEW_MESSAGES } from '$lib/validation/message';
 import type { RequestHandler } from './$types';
 
 const log = createLogger('chat-server');
@@ -70,6 +70,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 				throw error(403, 'Not a member of this conversation');
 			}
 		}
+		// Visitors only get a preview of the default room
+		if (isPublic && roomId !== getDefaultChatRoomId()) {
+			throw error(403, 'Sign in to read this room');
+		}
 
 		log.debug('Fetching messages from Convex', {
 			beforeTimestamp,
@@ -90,7 +94,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			});
 		}
 
-		const fetchLimit = 100;
+		const fetchLimit = isPublic ? PUBLIC_PREVIEW_MESSAGES : 100;
 
 		const result = await messages.getByRoom(
 			roomId,

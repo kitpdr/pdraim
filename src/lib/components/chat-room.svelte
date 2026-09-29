@@ -13,7 +13,8 @@
 	import Tooltip from './ui/tooltip.svelte';
 	import LoadingDots from './ui/loading-dots.svelte';
 	import { desktop } from '$lib/states/desktop.svelte';
-	import { useAimClient } from '$lib/aim/client';
+	import { authQuery, tokenHash, useAimClient } from '$lib/aim/client';
+	import { PUBLIC_PREVIEW_MESSAGES } from '$lib/validation/message';
 	import { STATUS_LABELS_FR, type AimStatus } from '$lib/types/aim';
 	import FormattedMessage from './formatted-message.svelte';
 	import TextFormattingToolbar from './text-formatting-toolbar.svelte';
@@ -62,10 +63,17 @@
 		(requestedRoomId ?? defaultRoomQuery?.data?.id) as Id<'chatRooms'> | undefined
 	);
 
-	// Subscribe to messages - skipped until the room ID is available
-	const messagesQuery = isClient
-		? useQuery(convexApi.queries.getMessagesPublic, () => (roomId ? { roomId } : 'skip'))
+	// Subscribe to messages - skipped until the room ID is available.
+	// Members get the full live feed; visitors only the public preview of the default room.
+	const memberMessagesQuery = authQuery(convexApi.queries.getMessages, () =>
+		roomId ? { roomId } : 'skip'
+	);
+	const publicMessagesQuery = isClient
+		? useQuery(convexApi.queries.getMessagesPublic, () =>
+				roomId && !tokenHash() ? { roomId } : 'skip'
+			)
 		: null;
+	const messagesQuery = $derived(tokenHash() ? memberMessagesQuery : publicMessagesQuery);
 
 	const convexClient = isClient ? useConvexClient() : null;
 
@@ -270,11 +278,15 @@
 	// Visible messages (limit for non-logged-in users)
 	const visibleMessages = $derived.by<EnrichedMessage[]>(() => {
 		const isLoggedIn = Boolean(currentUser);
-		return isLoggedIn ? allMessages : allMessages.slice(Math.max(0, allMessages.length - 50));
+		return isLoggedIn
+			? allMessages
+			: allMessages.slice(Math.max(0, allMessages.length - PUBLIC_PREVIEW_MESSAGES));
 	});
 
 	// Show registration prompt for non-logged-in users
-	const showRegistrationPrompt = $derived(!currentUser && allMessages.length > 50);
+	const showRegistrationPrompt = $derived(
+		!currentUser && allMessages.length >= PUBLIC_PREVIEW_MESSAGES
+	);
 
 	// Character counter
 	const CHAR_WARNING_THRESHOLD = Math.floor(MAX_MESSAGE_LENGTH * 0.8);
@@ -960,18 +972,19 @@
 			hasMoreMessages &&
 			roomId &&
 			chatArea &&
-			currentUser &&
 			convexClient
 		) {
+			const hash = tokenHash();
+			if (!hash) return;
 			isLoadingMore = true;
 			const prevScrollHeight = chatArea.scrollHeight;
 			const prevScrollTop = chatArea.scrollTop;
 
 			try {
-				const fetchLimit = currentUser ? 100 : 50;
-				const data = await convexClient.query(convexApi.queries.getMessagesPublicPage, {
+				const data = await convexClient.query(convexApi.queries.getMessagesPage, {
+					tokenHash: hash,
 					roomId,
-					limit: fetchLimit,
+					limit: 100,
 					beforeTimestamp: oldestMessageTimestamp ?? undefined
 				});
 

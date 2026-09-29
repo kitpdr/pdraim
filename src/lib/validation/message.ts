@@ -3,6 +3,9 @@ import { z } from 'zod';
 // Message constraints
 export const MAX_MESSAGE_LENGTH = 500;
 export const MIN_MESSAGE_LENGTH = 1;
+// Visitors see this many latest messages of the default room before the registration prompt.
+// Keep in sync with PUBLIC_MESSAGE_LIMIT in src/convex/queries.ts.
+export const PUBLIC_PREVIEW_MESSAGES = 50;
 
 // Message content schema
 export const messageContentSchema = z
