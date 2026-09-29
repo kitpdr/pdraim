@@ -18,6 +18,8 @@ const MAX_PROFILE_LENGTH = 1000;
 const MAX_ROOM_NAME_LENGTH = 40;
 const MAX_TOPIC_LENGTH = 120;
 const DEFAULT_GROUP = 'Buddies';
+// Unread badges stop counting here (shown as "99+")
+export const MAX_UNREAD_COUNT = 100;
 
 export type EffectiveStatus = 'online' | 'away' | 'busy' | 'idle' | 'offline';
 
@@ -119,15 +121,19 @@ export const getMyDirectRooms = authQuery({
 				const otherId = (room.memberIds ?? []).find((id) => id !== me);
 				const other = otherId ? await ctx.db.get(otherId) : null;
 				const lastRead = readMap.get(room._id) ?? 0;
+				// Walk newest-first until the read cursor, scanning at most MAX_UNREAD_COUNT
+				// messages; a full scan still unread saturates the badge ("99+").
 				const recent = await ctx.db
 					.query('messages')
 					.withIndex('by_chatRoom', (q) => q.eq('chatRoomId', room._id))
 					.order('desc')
-					.take(50);
+					.take(MAX_UNREAD_COUNT);
 				const lastMessage = recent[0] ?? null;
-				const unreadCount = recent.filter(
-					(m) => m.timestamp > lastRead && m.senderId !== me
-				).length;
+				const unread = recent.filter((m) => m.timestamp > lastRead);
+				const unreadCount =
+					unread.length === MAX_UNREAD_COUNT
+						? MAX_UNREAD_COUNT
+						: unread.filter((m) => m.senderId !== me).length;
 				return {
 					id: room._id,
 					other: other ? toPublicUser(other) : null,
