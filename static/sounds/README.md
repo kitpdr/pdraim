@@ -18,5 +18,6 @@ Pour retrouver les vrais sons, déposer ici :
 
 Formats acceptés (dans cet ordre) : `.flac`, `.mp3`, `.wav`, `.ogg`. Pour les gros
 fichiers, `.flac` est sans perte et bien plus léger :
-`ffmpeg -i modem.wav -c:a flac -compression_level 12 modem.flac`. Source archivée connue :
+`ffmpeg -i modem.wav -c:a flac -compression_level 12 modem.flac`. Garder le `.wav`
+à côté : il n'est téléchargé que si le navigateur ne décode pas le FLAC. Source archivée connue :
 <https://archive.org/details/im_20191103>.
