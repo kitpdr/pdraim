@@ -6,7 +6,7 @@
 	import type { Id } from '../../../convex/_generated/dataModel';
 	import type { Buddy, AimStatus } from '$lib/types/aim';
 	import { DEFAULT_BUDDY_GROUPS, STATUS_LABELS_FR } from '$lib/types/aim';
-	import { playSound } from '$lib/aim/sounds';
+	import { playSound } from '$lib/aim/sounds.svelte';
 	import { authQuery, useAimClient, convexAvailable } from '$lib/aim/client';
 	import { chatState } from '$lib/states/chat.svelte';
 	import { desktop } from '$lib/states/desktop.svelte';
@@ -209,7 +209,8 @@
 	async function logout() {
 		dropdownMenu = null;
 		try {
-			await fetch('/api/session/logout', { method: 'POST' });
+			const response = await fetch('/api/session/logout', { method: 'POST' });
+			if (!response.ok) throw new Error('logout failed');
 			window.location.reload();
 		} catch {
 			error = 'Déconnexion impossible.';
@@ -403,7 +404,9 @@
 									})}
 								><img src="/aim/running-man-16.png" alt="" width="12" height="12" />
 								<span class="truncate"
-									>{room.other.nickname}{room.unreadCount ? ` (${room.unreadCount})` : ''}</span
+									>{room.other.nickname}{room.unreadCount
+										? ` (${room.unreadCount >= 100 ? '99+' : room.unreadCount})`
+										: ''}</span
 								></button
 							>{/if}{/each}{/if}
 			{/if}

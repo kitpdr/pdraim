@@ -6,16 +6,22 @@ import { createLogger } from '$lib/utils/logger.server';
 
 const log = createLogger('logout-server');
 
+const json = (body: object, status: number) =>
+	new Response(JSON.stringify(body), {
+		status,
+		headers: { 'Content-Type': 'application/json' }
+	});
+
 export const POST: RequestHandler = async ({ cookies, locals }) => {
-	let success = true;
 	if (locals.session) {
 		try {
 			await invalidateSession(locals.session.id);
 		} catch (err) {
-			success = false;
+			// Keep the cookie: the session is still valid, so the client must not think it is signed out.
 			log.error('Session invalidation failed', {
 				error: err instanceof Error ? err.message : 'Unknown error'
 			});
+			return json({ success: false }, 500);
 		}
 		try {
 			await users.updateStatus(locals.session.userId, 'offline');
@@ -26,8 +32,5 @@ export const POST: RequestHandler = async ({ cookies, locals }) => {
 		}
 	}
 	deleteSessionTokenCookie({ cookies });
-	return new Response(JSON.stringify({ success }), {
-		status: success ? 200 : 500,
-		headers: { 'Content-Type': 'application/json' }
-	});
+	return json({ success: true }, 200);
 };

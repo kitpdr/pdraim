@@ -230,11 +230,13 @@ export const getUsers = authQuery({
 	}
 });
 
-// Authenticated query: Get chat rooms
+// Authenticated query: Get chat rooms (direct rooms only when the user is a member)
 export const getChatRooms = authQuery({
 	args: {},
 	handler: async (ctx) => {
-		const rooms = await ctx.db.query('chatRooms').collect();
+		const rooms = (await ctx.db.query('chatRooms').collect()).filter(
+			(room) => room.type !== 'direct' || (room.memberIds ?? []).includes(ctx.user._id)
+		);
 		return rooms.map((room) => ({
 			id: room._id,
 			name: room.name,
