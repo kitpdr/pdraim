@@ -132,15 +132,21 @@
 			// Cancelled after the credentials were sent: the server may have created a
 			// session, so honour "Annuler" by signing out (a no-op without a session).
 			if (step >= 2 && signOnAbort === controller) {
-				await fetch('/api/session/logout', { method: 'POST' }).catch(() => {});
-				chatState.setCurrentUser(null);
+				const loggedOut = await fetch('/api/session/logout', { method: 'POST' })
+					.then((res) => res.ok)
+					.catch(() => false);
+				// Re-sync client auth with the server either way; only claim success if the logout worked.
 				await invalidate('app:session');
+				if (!loggedOut) error = 'Annulation impossible : tu es peut-être connecté.';
 			}
 		} finally {
 			if (signOnAbort === controller) {
 				signOnAbort = null;
 				desktop.signingOn = false;
-				if (signal.aborted) step = 0;
+				if (signal.aborted) {
+					step = 0;
+					signedOnAs = null;
+				}
 			}
 		}
 	}
