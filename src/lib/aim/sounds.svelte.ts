@@ -234,7 +234,7 @@ export const SOUND_DURATIONS_MS: Record<AimSound, number> = {
 // Not UI state, so a plain Map is intended.
 // eslint-disable-next-line svelte/prefer-svelte-reactivity
 const samples = new Map<AimSound, Promise<AudioBuffer | null>>();
-const SAMPLE_EXTENSIONS = ['mp3', 'wav', 'ogg'];
+const SAMPLE_EXTENSIONS = ['flac', 'mp3', 'wav', 'ogg'];
 
 function loadSample(ac: AudioContext, name: AimSound): Promise<AudioBuffer | null> {
 	let pending = samples.get(name);
@@ -243,7 +243,8 @@ function loadSample(ac: AudioContext, name: AimSound): Promise<AudioBuffer | nul
 			for (const ext of SAMPLE_EXTENSIONS) {
 				try {
 					const res = await fetch(`/sounds/${name}.${ext}`, { cache: 'force-cache' });
-					if (!res.ok || !(res.headers.get('content-type') ?? '').startsWith('audio/')) continue;
+					// Skip HTML fallbacks; some servers send .flac without an audio/* type
+					if (!res.ok || (res.headers.get('content-type') ?? '').startsWith('text/')) continue;
 					return await ac.decodeAudioData(await res.arrayBuffer());
 				} catch {
 					// try next extension

@@ -16,5 +16,7 @@ Pour retrouver les vrais sons, déposer ici :
 | `welcome.wav`   | Welcome.wav       |
 | `modem.wav`     | (optionnel)       |
 
-Formats acceptés : `.wav`, `.mp3`, `.ogg`. Source archivée connue :
+Formats acceptés (dans cet ordre) : `.flac`, `.mp3`, `.wav`, `.ogg`. Pour les gros
+fichiers, `.flac` est sans perte et bien plus léger :
+`ffmpeg -i modem.wav -c:a flac -compression_level 12 modem.flac`. Source archivée connue :
 <https://archive.org/details/im_20191103>.
