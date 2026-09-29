@@ -121,19 +121,22 @@ export const getMyDirectRooms = authQuery({
 				const otherId = (room.memberIds ?? []).find((id) => id !== me);
 				const other = otherId ? await ctx.db.get(otherId) : null;
 				const lastRead = readMap.get(room._id) ?? 0;
-				// Walk newest-first until the read cursor, scanning at most MAX_UNREAD_COUNT
-				// messages; a full scan still unread saturates the badge ("99+").
-				const recent = await ctx.db
+				const lastMessage = await ctx.db
 					.query('messages')
 					.withIndex('by_chatRoom', (q) => q.eq('chatRoomId', room._id))
 					.order('desc')
-					.take(MAX_UNREAD_COUNT);
-				const lastMessage = recent[0] ?? null;
-				const unread = recent.filter((m) => m.timestamp > lastRead);
-				const unreadCount =
-					unread.length === MAX_UNREAD_COUNT
-						? MAX_UNREAD_COUNT
-						: unread.filter((m) => m.senderId !== me).length;
+					.first();
+				// Incoming messages after the read cursor, capped for the "99+" badge. Every index
+				// ends with _creationTime, so the range scan stops at the cursor.
+				const unreadCount = (
+					await ctx.db
+						.query('messages')
+						.withIndex('by_chatRoom', (q) =>
+							q.eq('chatRoomId', room._id).gt('_creationTime', lastRead)
+						)
+						.filter((q) => q.neq(q.field('senderId'), me))
+						.take(MAX_UNREAD_COUNT)
+				).length;
 				return {
 					id: room._id,
 					other: other ? toPublicUser(other) : null,
