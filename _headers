@@ -16,3 +16,10 @@
 
 /desktop/*
   Cache-Control: public, max-age=2592000
+
+# Optional AIM samples and smileys (only present when dropped in locally)
+/sounds/*
+  Cache-Control: public, max-age=2592000
+
+/smileys/*
+  Cache-Control: public, max-age=2592000

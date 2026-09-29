@@ -20,6 +20,9 @@ export const sendMessage = authMutation({
 		if (!room) {
 			throw new Error('Chat room not found');
 		}
+		if (room.type === 'direct' && !(room.memberIds ?? []).includes(user._id)) {
+			throw new Error('Not a member of this conversation');
+		}
 
 		const messageId = await ctx.db.insert('messages', {
 			chatRoomId: args.chatRoomId,

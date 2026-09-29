@@ -6,17 +6,23 @@
 		type FontFamily
 	} from '../types/text-formatting';
 	import ColorPicker256 from './color-picker-256.svelte';
+	import { SMILEYS } from '$lib/aim/smileys';
 
 	// Props
 	let {
 		style = $bindable(DEFAULT_TEXT_STYLE),
 		compact = true,
-		showFontSelector = false
+		showFontSelector = false,
+		onSmiley
 	} = $props<{
 		style?: TextStyle;
 		compact?: boolean;
 		showFontSelector?: boolean;
+		/** When set, shows the AIM smiley picker and inserts the chosen code */
+		onSmiley?: (code: string) => void;
 	}>();
+
+	let smileyOpen = $state(false);
 
 	// State
 	let currentColor = $state(style.color || '#000000');
@@ -132,6 +138,38 @@
 		</button>
 	</div>
 
+	{#if onSmiley}
+		<div class="smiley-control">
+			<button
+				type="button"
+				title="Smileys"
+				aria-haspopup="true"
+				aria-expanded={smileyOpen}
+				onclick={() => (smileyOpen = !smileyOpen)}
+				class="smiley-trigger"
+			>
+				<img src="/smileys/01.gif" alt="🙂" width="15" height="15" />
+			</button>
+			{#if smileyOpen}
+				<div class="smiley-picker" role="menu">
+					{#each SMILEYS as smiley (smiley.file)}
+						<button
+							type="button"
+							role="menuitem"
+							title="{smiley.label}  {smiley.codes[0]}"
+							onclick={() => {
+								smileyOpen = false;
+								onSmiley(smiley.codes[0]);
+							}}
+						>
+							<img src="/smileys/{smiley.file}.gif" alt={smiley.emoji} width="19" height="19" />
+						</button>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	{/if}
+
 	<!-- Color controls -->
 	<div class="color-controls">
 		<ColorPicker256
@@ -177,6 +215,68 @@
 		gap: 1px;
 	}
 
+	/* xp.css gives every button min-width: 75px; keep toolbar buttons square */
+	.style-toggles button,
+	.color-controls :global(.color-picker-container > button) {
+		width: 22px !important;
+		height: 20px !important;
+		min-width: 0;
+		min-height: 0;
+		padding: 0 !important;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.smiley-control {
+		position: relative;
+		display: flex;
+	}
+	.smiley-trigger {
+		width: 24px;
+		height: 20px;
+		min-width: 0;
+		min-height: 0;
+		padding: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		line-height: 0;
+	}
+	.smiley-control img {
+		display: block;
+		image-rendering: pixelated;
+	}
+	.smiley-picker {
+		position: absolute;
+		bottom: calc(100% + 2px);
+		left: 0;
+		z-index: 60;
+		display: grid;
+		grid-template-columns: repeat(4, 25px);
+		gap: 1px;
+		padding: 3px;
+		background: #fff;
+		border: 1px solid #7f9db9;
+		box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+	}
+	.smiley-picker button {
+		width: 25px;
+		height: 25px;
+		min-width: 0;
+		min-height: 0;
+		padding: 0;
+		background: transparent;
+		box-shadow: none;
+		border: 1px solid transparent;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.smiley-picker button:hover {
+		border-color: #316ac5;
+		background: #e8eefb;
+	}
 	.color-controls {
 		display: flex;
 		gap: 1px;

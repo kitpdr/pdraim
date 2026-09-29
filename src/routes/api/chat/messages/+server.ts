@@ -1,11 +1,11 @@
-import { messages } from '$lib/db/convex.server';
+import { messages, chatRooms } from '$lib/db/convex.server';
 import { getDefaultChatRoomId } from '$lib/utils/chat.server';
 import type { Message } from '$lib/types/chat';
 import type { SendMessageResponse, GetMessagesResponse } from '$lib/types/payloads';
-import { error } from '@sveltejs/kit';
+import { error, isHttpError } from '@sveltejs/kit';
 import { createLogger } from '$lib/utils/logger.server';
 import { sanitizeStyleData } from '$lib/validation/text-formatting';
-import { sendMessageSchema } from '$lib/validation/message';
+import { sendMessageSchema, PUBLIC_PREVIEW_MESSAGES } from '$lib/validation/message';
 import type { RequestHandler } from './$types';
 
 const log = createLogger('chat-server');
@@ -60,6 +60,21 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	}
 
 	try {
+		// Direct (IM) rooms are private to their two members
+		const room = await chatRooms.getById(roomId);
+		if (!room) {
+			throw error(404, 'Chat room not found');
+		}
+		if (room.type === 'direct') {
+			if (!locals.user || !(room.memberIds ?? []).includes(locals.user.id)) {
+				throw error(403, 'Not a member of this conversation');
+			}
+		}
+		// Visitors only get a preview of the default room
+		if (isPublic && roomId !== getDefaultChatRoomId()) {
+			throw error(403, 'Sign in to read this room');
+		}
+
 		log.debug('Fetching messages from Convex', {
 			beforeTimestamp,
 			roomId,
@@ -79,7 +94,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			});
 		}
 
-		const fetchLimit = 100;
+		const fetchLimit = isPublic ? PUBLIC_PREVIEW_MESSAGES : 100;
 
 		const result = await messages.getByRoom(
 			roomId,
@@ -109,6 +124,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			headers: { 'Content-Type': 'application/json' }
 		});
 	} catch (err) {
+		if (isHttpError(err)) throw err;
 		log.error('Error fetching messages:', { error: err });
 		throw error(500, 'Failed to fetch messages');
 	}

@@ -1,6 +1,8 @@
 import { query } from './_generated/server';
+import type { QueryCtx } from './_generated/server';
 import { authQuery } from './auth';
 import { v } from 'convex/values';
+import { toPublicUser, assertRoomAccess } from './aim';
 
 // Timeout threshold for marking users as offline (2 minutes)
 const ONLINE_TIMEOUT_MS = 2 * 60 * 1000;
@@ -25,9 +27,22 @@ function computeEffectiveStatus(
 
 // ============ PUBLIC QUERIES (no auth required) ============
 
-// Public query: Get messages for a chat room (real-time subscription)
-// Max 100 messages for public/unauthenticated users
-const PUBLIC_MESSAGE_LIMIT = 100;
+// Visitors (not signed in) only see the latest messages of the default room.
+// Keep in sync with PUBLIC_PREVIEW_MESSAGES in src/lib/validation/message.ts.
+const PUBLIC_MESSAGE_LIMIT = 50;
+const MAX_AUTH_MESSAGE_LIMIT = 200;
+
+// Default room: "General", or the first group room when it does not exist
+async function findDefaultRoom(ctx: QueryCtx) {
+	const rooms = await ctx.db.query('chatRooms').collect();
+	return (
+		rooms.find((r) => r.name === 'General' && r.type === 'group') ??
+		rooms.find((r) => r.type === 'group') ??
+		null
+	);
+}
+
+// Public query: latest messages of the default room (real-time subscription)
 
 export const getMessagesPublic = query({
 	args: {
@@ -35,6 +50,10 @@ export const getMessagesPublic = query({
 		limit: v.optional(v.number())
 	},
 	handler: async (ctx, args) => {
+		// Only the default room is readable without an account
+		const defaultRoom = await findDefaultRoom(ctx);
+		if (!defaultRoom || defaultRoom._id !== args.roomId) return [];
+
 		// Enforce max limit and clamp to a safe positive integer
 		const rawLimit = args.limit ?? PUBLIC_MESSAGE_LIMIT;
 		const limit = Math.max(1, Math.min(PUBLIC_MESSAGE_LIMIT, Math.floor(rawLimit)));
@@ -75,16 +94,20 @@ export const getMessagesPublic = query({
 	}
 });
 
-// Public query: Get paginated messages for a chat room (older history)
-export const getMessagesPublicPage = query({
+// Authenticated query: older history of a room (pagination is members-only)
+export const getMessagesPage = authQuery({
 	args: {
 		roomId: v.id('chatRooms'),
 		limit: v.optional(v.number()),
 		beforeTimestamp: v.optional(v.number())
 	},
 	handler: async (ctx, args) => {
+		const room = await ctx.db.get(args.roomId);
+		if (!room) return { messages: [], hasMore: false };
+		await assertRoomAccess(ctx, room, ctx.user._id);
+
 		const rawLimit = args.limit ?? 50;
-		const limit = Math.max(1, Math.min(PUBLIC_MESSAGE_LIMIT, Math.floor(rawLimit)));
+		const limit = Math.max(1, Math.min(MAX_AUTH_MESSAGE_LIMIT, Math.floor(rawLimit)));
 
 		let query = ctx.db
 			.query('messages')
@@ -122,13 +145,7 @@ export const getUsersPublic = query({
 		const users = await ctx.db.query('users').collect();
 
 		// Return safe user data (no passwords) with computed status
-		return users.map((user) => ({
-			id: user._id,
-			nickname: user.nickname,
-			status: computeEffectiveStatus(user.status, user.lastSeen),
-			avatarUrl: user.avatarUrl,
-			lastSeen: user.lastSeen
-		}));
+		return users.map(toPublicUser);
 	}
 });
 
@@ -136,30 +153,10 @@ export const getUsersPublic = query({
 export const getDefaultRoomPublic = query({
 	args: {},
 	handler: async (ctx) => {
-		const rooms = await ctx.db.query('chatRooms').collect();
-		const defaultRoom = rooms.find((r) => r.name === 'General' && r.type === 'group');
-
-		if (defaultRoom) {
-			return {
-				id: defaultRoom._id,
-				name: defaultRoom.name,
-				type: defaultRoom.type,
-				createdAt: defaultRoom.createdAt
-			};
-		}
-
-		// Return first group room if General doesn't exist
-		const firstGroup = rooms.find((r) => r.type === 'group');
-		if (firstGroup) {
-			return {
-				id: firstGroup._id,
-				name: firstGroup.name,
-				type: firstGroup.type,
-				createdAt: firstGroup.createdAt
-			};
-		}
-
-		return null;
+		const room = await findDefaultRoom(ctx);
+		return room
+			? { id: room._id, name: room.name, type: room.type, createdAt: room.createdAt }
+			: null;
 	}
 });
 
@@ -172,7 +169,10 @@ export const getMessages = authQuery({
 		limit: v.optional(v.number())
 	},
 	handler: async (ctx, args) => {
-		const MAX_AUTH_MESSAGE_LIMIT = 200;
+		const room = await ctx.db.get(args.roomId);
+		if (!room) return [];
+		await assertRoomAccess(ctx, room, ctx.user._id);
+
 		const rawLimit = args.limit ?? 100;
 		const limit = Math.max(1, Math.min(MAX_AUTH_MESSAGE_LIMIT, Math.floor(rawLimit)));
 		const query = ctx.db
@@ -219,21 +219,17 @@ export const getUsers = authQuery({
 		const users = await ctx.db.query('users').collect();
 
 		// Return safe user data (no passwords) with computed status
-		return users.map((user) => ({
-			id: user._id,
-			nickname: user.nickname,
-			status: computeEffectiveStatus(user.status, user.lastSeen),
-			avatarUrl: user.avatarUrl,
-			lastSeen: user.lastSeen
-		}));
+		return users.map(toPublicUser);
 	}
 });
 
-// Authenticated query: Get chat rooms
+// Authenticated query: Get chat rooms (direct rooms only when the user is a member)
 export const getChatRooms = authQuery({
 	args: {},
 	handler: async (ctx) => {
-		const rooms = await ctx.db.query('chatRooms').collect();
+		const rooms = (await ctx.db.query('chatRooms').collect()).filter(
+			(room) => room.type !== 'direct' || (room.memberIds ?? []).includes(ctx.user._id)
+		);
 		return rooms.map((room) => ({
 			id: room._id,
 			name: room.name,

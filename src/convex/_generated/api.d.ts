@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as aim from "../aim.js";
 import type * as auth from "../auth.js";
 import type * as chatRoomsInternal from "../chatRoomsInternal.js";
 import type * as crons from "../crons.js";
@@ -26,6 +27,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  aim: typeof aim;
   auth: typeof auth;
   chatRoomsInternal: typeof chatRoomsInternal;
   crons: typeof crons;

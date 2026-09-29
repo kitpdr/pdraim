@@ -153,6 +153,9 @@ export interface ConvexChatRoom {
 	name?: string;
 	type: string;
 	createdAt: number;
+	topic?: string;
+	memberIds?: string[];
+	createdBy?: string;
 }
 
 export interface ConvexTextPreferences {

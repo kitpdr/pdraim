@@ -73,8 +73,10 @@ export const updateStatus = internalMutation({
 			throw new Error('User not found');
 		}
 
+		// An away message keeps the user away: presence heartbeats only refresh lastSeen.
+		const keepAway = user.awayMessage && args.status !== 'offline';
 		await ctx.db.patch(args.id, {
-			status: args.status,
+			status: keepAway ? 'away' : args.status,
 			lastSeen: Date.now()
 		});
 

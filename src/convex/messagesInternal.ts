@@ -57,6 +57,11 @@ export const send = internalMutation({
 			throw new Error('User not found');
 		}
 
+		// Direct rooms are restricted to their two members
+		if (room.type === 'direct' && !(room.memberIds ?? []).includes(args.senderId)) {
+			throw new Error('Not a member of this conversation');
+		}
+
 		const messageId = await ctx.db.insert('messages', {
 			chatRoomId: args.chatRoomId,
 			senderId: args.senderId,

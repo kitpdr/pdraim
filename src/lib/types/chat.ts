@@ -8,6 +8,7 @@ export interface User {
 	createdAt: number; // Timestamp (e.g., Unix timestamp)
 	lastSeen?: number | null; // Optional last active timestamp
 	lastReadMentionTimestamp?: number | null; // Timestamp of last read mention
+	awayMessage?: string; // AIM away message (only exposed while away)
 }
 
 export type UserStatus = 'offline' | 'online' | 'away' | string;
